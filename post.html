@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Статья — Вместе проще</title>
+  <meta name="description" content="Практичные статьи о совместной жизни: деньги, быт, документы и отношения.">
+  <meta name="theme-color" content="#ffffff">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Вместе проще">
+  <meta property="og:title" content="Вместе проще">
+  <meta property="og:description" content="Онлайн-гид для молодых семей.">
+  <meta property="og:image" content="assets/og-cover.png">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <script defer src="config.js"></script>
+  <script defer src="js/common.js"></script>
+  <script defer src="js/post.js"></script>
+</head>
+<body id="top">
+  <div class="reading-progress" id="readingProgress" aria-hidden="true"></div>
+  <a class="skip-link" href="#main">Перейти к содержанию</a>
+
+  <header class="site-header">
+    <div class="container header-main">
+      <a class="brand" href="index.html" aria-label="Вместе проще — на главную">
+        <span class="brand__name">Вместе проще</span>
+        <span class="brand__descriptor">онлайн-гид<br>для молодых семей</span>
+      </a>
+      <time class="header-date" id="headerDate"></time>
+    </div>
+    <nav class="container rubrics" aria-label="Рубрики">
+      <a href="index.html#all" data-category="all">Все</a>
+      <a href="index.html#money" data-category="money">Деньги</a>
+      <a href="index.html#home" data-category="home">Быт</a>
+      <a href="index.html#docs" data-category="docs">Документы</a>
+      <a href="index.html#relationships" data-category="relationships">Отношения</a>
+      <a class="rubrics__about" href="about.html">О проекте</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <div id="articleRoot" aria-busy="true">
+      <div class="container article-header" aria-hidden="true">
+        <div class="skeleton skeleton--tag"></div>
+        <div class="skeleton skeleton--article-title"></div>
+        <div class="skeleton skeleton--article-title skeleton--title-short"></div>
+        <div class="skeleton skeleton--line"></div>
+        <div class="skeleton skeleton--line skeleton--line-short"></div>
+      </div>
+      <div class="container">
+        <div class="article-cover skeleton"></div>
+      </div>
+      <div class="container">
+        <div class="article-body article-skeleton" aria-hidden="true">
+          <div class="skeleton skeleton--line"></div>
+          <div class="skeleton skeleton--line"></div>
+          <div class="skeleton skeleton--line skeleton--line-short"></div>
+          <div class="skeleton skeleton--heading"></div>
+          <div class="skeleton skeleton--line"></div>
+          <div class="skeleton skeleton--line"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-main">
+      <div class="footer-brand">
+        <a class="brand brand--footer" href="index.html" aria-label="Вместе проще — на главную">
+          <span class="brand__name">Вместе проще</span>
+        </a>
+        <p>Короткие статьи о совместной жизни.<br>Без советов «просто будь терпимее».</p>
+      </div>
+      <nav class="footer-nav" aria-label="Рубрики в подвале">
+        <p class="footer-title">Рубрики</p>
+        <a href="index.html#money">Деньги</a>
+        <a href="index.html#home">Быт</a>
+        <a href="index.html#docs">Документы</a>
+        <a href="index.html#relationships">Отношения</a>
+      </nav>
+      <nav class="footer-nav" aria-label="О проекте">
+        <p class="footer-title">Проект</p>
+        <a href="about.html">О проекте</a>
+        <a href="index.html#all">Все материалы</a>
+        <a href="#top">Наверх</a>
+      </nav>
+    </div>
+    <div class="container footer-bottom">
+      <p>© <span id="copyrightYear">2026</span> «Вместе проще»</p>
+      <p>Онлайн-гид для молодых семей</p>
+    </div>
+  </footer>
+</body>
+</html>

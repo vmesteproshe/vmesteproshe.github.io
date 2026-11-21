@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>О проекте — Вместе проще</title>
+  <meta name="description" content="«Вместе проще» — онлайн-гид для молодых семей о деньгах, быте, документах и отношениях.">
+  <meta name="theme-color" content="#ffffff">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Вместе проще">
+  <meta property="og:title" content="О проекте — Вместе проще">
+  <meta property="og:description" content="Короткий гид о совместной жизни без нотаций и идеальных решений.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <script defer src="config.js"></script>
+  <script defer src="js/common.js"></script>
+  <script defer src="js/about.js"></script>
+</head>
+<body id="top">
+  <a class="skip-link" href="#main">Перейти к содержанию</a>
+
+  <header class="site-header">
+    <div class="container header-main">
+      <a class="brand" href="index.html" aria-label="Вместе проще — на главную">
+        <span class="brand__name">Вместе проще</span>
+        <span class="brand__descriptor">онлайн-гид<br>для молодых семей</span>
+      </a>
+      <time class="header-date" id="headerDate"></time>
+    </div>
+    <nav class="container rubrics" aria-label="Рубрики">
+      <a href="index.html#all" data-category="all">Все</a>
+      <a href="index.html#money" data-category="money">Деньги</a>
+      <a href="index.html#home" data-category="home">Быт</a>
+      <a href="index.html#docs" data-category="docs">Документы</a>
+      <a href="index.html#relationships" data-category="relationships">Отношения</a>
+      <a class="rubrics__about" href="about.html" aria-current="page">О проекте</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <div class="container">
+      <div id="aboutRoot" aria-busy="true">
+        <header class="about-header">
+          <p class="eyebrow">О проекте</p>
+          <h1 class="about-title" id="aboutTitle">
+            <span class="skeleton skeleton--about-title" aria-hidden="true"></span>
+            <span class="visually-hidden">О проекте «Вместе проще»</span>
+          </h1>
+          <p class="about-meta">Онлайн-гид · Деньги, быт, документы, отношения</p>
+        </header>
+        <div class="article-body about-body" id="aboutContent" aria-live="polite">
+          <div class="skeleton skeleton--line"></div>
+          <div class="skeleton skeleton--line"></div>
+          <div class="skeleton skeleton--line skeleton--line-short"></div>
+          <div class="skeleton skeleton--heading"></div>
+          <div class="skeleton skeleton--line"></div>
+        </div>
+      </div>
+
+      <section class="about-cta" aria-labelledby="aboutCtaTitle">
+        <div>
+          <p class="eyebrow">Читать дальше</p>
+          <h2 id="aboutCtaTitle">Начните с того, что важно сейчас</h2>
+        </div>
+        <a class="btn" href="index.html#all">Все материалы</a>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-main">
+      <div class="footer-brand">
+        <a class="brand brand--footer" href="index.html" aria-label="Вместе проще — на главную">
+          <span class="brand__name">Вместе проще</span>
+        </a>
+        <p>Короткие статьи о совместной жизни.<br>Без советов «просто будь терпимее».</p>
+      </div>
+      <nav class="footer-nav" aria-label="Рубрики в подвале">
+        <p class="footer-title">Рубрики</p>
+        <a href="index.html#money">Деньги</a>
+        <a href="index.html#home">Быт</a>
+        <a href="index.html#docs">Документы</a>
+        <a href="index.html#relationships">Отношения</a>
+      </nav>
+      <nav class="footer-nav" aria-label="О проекте">
+        <p class="footer-title">Проект</p>
+        <a href="about.html">О проекте</a>
+        <a href="index.html#all">Все материалы</a>
+        <a href="#top">Наверх</a>
+      </nav>
+    </div>
+    <div class="container footer-bottom">
+      <p>© <span id="copyrightYear">2026</span> «Вместе проще»</p>
+      <p>Онлайн-гид для молодых семей</p>
+    </div>
+  </footer>
+</body>
+</html>
