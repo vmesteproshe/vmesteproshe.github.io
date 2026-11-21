@@ -57,7 +57,7 @@
     "июл", "авг", "сен", "окт", "ноя", "дек"
   ];
 
-  var DEFAULT_OG_IMAGE = "assets/og-cover.png";
+  var DEFAULT_OG_IMAGE = "https://vmesteproshe.github.io/assets/og-cover.png";
 
   function getCategory(id) {
     return CATEGORY_MAP[id] || { id: id || "", label: "Материалы", description: "" };

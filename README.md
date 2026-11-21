@@ -2,6 +2,10 @@
 
 Онлайн-гид для молодых семей: короткие практичные статьи о деньгах, быте, документах и отношениях. Чистый HTML, CSS и JavaScript. Без сборки и фреймворков — проект готов к загрузке на GitHub Pages.
 
+- Сайт: <https://vmesteproshe.github.io/>
+- Редакция: <https://vmesteproshe.github.io/admin.html>
+- Репозиторий: <https://github.com/vmesteproshe/vmesteproshe.github.io>
+
 ## Что внутри
 
 ```
@@ -51,7 +55,7 @@ assets/covers/    локальные обложки тестовых стате�
 
    Откройте `http://localhost:8080`.
 
-7. Загрузите все файлы в репозиторий GitHub. В **Settings → Pages** выберите **Deploy from a branch → main / (root)**. Сайт будет доступен по адресу вида `https://username.github.io/repository/`.
+7. Загрузите все файлы в репозиторий GitHub. В **Settings → Pages** выберите **Deploy from a branch → main / (root)**. Сайт будет доступен по адресу `https://vmesteproshe.github.io/`.
 
 > Публичный anon-ключ Supabase можно хранить в клиентском коде: запись защищена RLS. Ключ `service_role` в браузер вставлять нельзя.
 
@@ -110,7 +114,7 @@ assets/covers/    локальные обложки тестовых стате�
 
 - Тексты статей и страницы хранятся в Markdown. Предпросмотр в панели использует `marked`, HTML очищается через DOMPurify.
 - Тестовые обложки лежат в `assets/covers/` и указаны в `sql/seed.sql` относительными путями — они работают и на GitHub Pages с вложенным адресом.
-- Для красивого превью в соцсетях после публикации замените относительный путь в `og:image` на полный адрес сайта, например `https://username.github.io/repository/assets/og-cover.png`.
+- Для красивого превью в соцсетях `og:image` содержит полный адрес `https://vmesteproshe.github.io/assets/og-cover.png`; при смене домена обновите его в `index.html`, `post.html`, `about.html` и `js/common.js`.
 - Загрузка обложки и картинок идёт в Storage, в статью попадает публичный URL.
 - Удаление статьи не удаляет физически её файлы из Storage — их можно почистить вручную.
 - Если панель пишет «Таблица не найдена», выполните `sql/schema.sql`. Если «Бакет не найден» — `sql/storage.sql` или создайте бакет `media`.
