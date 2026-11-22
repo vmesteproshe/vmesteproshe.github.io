@@ -25,7 +25,7 @@
   }
 
   function categoryLink(categoryId, label) {
-    return '<a class="tag" href="index.html#' + window.VP.escapeHtml(categoryId) + '">' +
+    return '<a class="tag" href="./#' + window.VP.escapeHtml(categoryId) + '">' +
       window.VP.escapeHtml(label) + "</a>";
   }
 
@@ -95,7 +95,7 @@
           '<div class="state">' +
             '<h2 class="state__title">В этой рубрике пока пусто</h2>' +
             '<p class="state__text">Материалы появятся позже. А пока можно посмотреть всё, что уже вышло.</p>' +
-            '<a class="btn" href="index.html#all">Смотреть все материалы</a>' +
+            '<a class="btn" href="./#all">Смотреть все материалы</a>' +
           "</div>" +
         "</section>"
       );

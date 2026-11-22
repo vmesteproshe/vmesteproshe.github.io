@@ -38,7 +38,7 @@
           '<p class="eyebrow">' + window.VP.escapeHtml(options.eyebrow || "Материал") + "</p>" +
           '<h1>' + window.VP.escapeHtml(options.title || "Статья не найдена") + "</h1>" +
           '<p>' + window.VP.escapeHtml(options.text || "Возможно, ссылка устарела или материал был удалён.") + "</p>" +
-          '<a class="btn" href="index.html">Все материалы</a>' +
+          '<a class="btn" href="./">Все материалы</a>' +
           devHint +
         "</div>" +
       "</div>"
@@ -54,7 +54,7 @@
           window.VP.coverMarkup(post, { className: "media--card" }) +
         "</a>" +
         '<div class="card__body">' +
-          '<a class="tag" href="index.html#' + window.VP.escapeHtml(category.id) + '">' +
+          '<a class="tag" href="./#' + window.VP.escapeHtml(category.id) + '">' +
             window.VP.escapeHtml(category.label) + "</a>" +
           '<h2 class="card__title"><a href="' + window.VP.escapeHtml(url) + '">' +
             window.VP.escapeHtml(post.title || "Без заголовка") + "</a></h2>" +
@@ -76,11 +76,11 @@
       '<article class="article">' +
         '<header class="container article-header">' +
           '<nav class="breadcrumbs" aria-label="Вы находитесь здесь">' +
-            '<a href="index.html">Главная</a>' +
+            '<a href="./">Главная</a>' +
             '<span aria-hidden="true">/</span>' +
-            '<a href="index.html#' + window.VP.escapeHtml(category.id) + '">' + window.VP.escapeHtml(category.label) + "</a>" +
+            '<a href="./#' + window.VP.escapeHtml(category.id) + '">' + window.VP.escapeHtml(category.label) + "</a>" +
           "</nav>" +
-          '<a class="tag" href="index.html#' + window.VP.escapeHtml(category.id) + '">' + window.VP.escapeHtml(category.label) + "</a>" +
+          '<a class="tag" href="./#' + window.VP.escapeHtml(category.id) + '">' + window.VP.escapeHtml(category.label) + "</a>" +
           '<h1 class="article-title">' + window.VP.escapeHtml(post.title || "Без заголовка") + "</h1>" +
           (post.excerpt ? '<p class="article-dek">' + window.VP.escapeHtml(post.excerpt) + "</p>" : "") +
           '<div class="article-meta">' +
@@ -98,7 +98,7 @@
           '<div class="article-footer">' +
             '<button class="text-btn" type="button" id="shareBtn">Поделиться ссылкой</button>' +
             '<div class="article-footer__side">' +
-              '<a class="text-btn" href="index.html#' + window.VP.escapeHtml(category.id) + '">Ещё в рубрике</a>' +
+              '<a class="text-btn" href="./#' + window.VP.escapeHtml(category.id) + '">Ещё в рубрике</a>' +
               '<a class="text-btn" href="#top">Наверх</a>' +
             "</div>" +
           "</div>" +
