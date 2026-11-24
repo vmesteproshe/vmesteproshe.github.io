@@ -1,0 +1,40 @@
+name: Keep Supabase alive
+
+on:
+  schedule:
+    # Каждые 4 дня в 09:00 UTC
+    - cron: '0 9 */4 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping Supabase REST API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_ANON_KEY}" ]; then
+            echo "::error::Secrets SUPABASE_URL and SUPABASE_ANON_KEY must be set in Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          # Убираем возможный слеш в конце URL
+          BASE_URL="${SUPABASE_URL%/}"
+
+          echo "Pinging ${BASE_URL}/rest/v1/posts"
+          RESPONSE=$(curl -fsS \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${BASE_URL}/rest/v1/posts?select=id&limit=1")
+
+          echo "Response: ${RESPONSE}"
+          echo "Supabase is alive"
