@@ -180,9 +180,15 @@
                   <div class="field field--content" id="contentField">
                     <div class="field-head">
                       <label for="postContent">Текст статьи</label>
-                      <div class="editor-mode-tabs" role="tablist" aria-label="Режим текста статьи">
-                        <button class="editor-mode-tab is-active" type="button" role="tab" aria-selected="true" data-mode="editor" id="contentModeEditor">Редактор</button>
-                        <button class="editor-mode-tab" type="button" role="tab" aria-selected="false" data-mode="preview" id="contentModePreview">Предпросмотр</button>
+                      <div class="preview-head-controls">
+                        <div class="editor-mode-tabs" role="tablist" aria-label="Режим текста статьи">
+                          <button class="editor-mode-tab is-active" type="button" role="tab" aria-selected="true" data-mode="editor" id="contentModeEditor">Редактор</button>
+                          <button class="editor-mode-tab" type="button" role="tab" aria-selected="false" data-mode="preview" id="contentModePreview">Предпросмотр</button>
+                        </div>
+                        <div class="preview-width-tabs preview-width-tabs--inline" role="radiogroup" aria-label="Ширина предпросмотра">
+                          <button class="preview-width-tab is-active" type="button" role="radio" aria-checked="true" data-preview-width="desktop">Десктоп</button>
+                          <button class="preview-width-tab" type="button" role="radio" aria-checked="false" data-preview-width="phone">Телефон (375px)</button>
+                        </div>
                       </div>
                     </div>
                     <div class="editor-toolbar" id="editorToolbar" aria-label="Форматирование текста">
@@ -226,7 +232,13 @@
                     </div>
 
                     <div class="preview-block" id="postPreviewWrap" hidden>
-                      <p class="side-label">Предпросмотр готовой статьи</p>
+                      <div class="preview-block__head">
+                        <p class="side-label">Предпросмотр готовой статьи</p>
+                        <div class="preview-width-tabs" role="radiogroup" aria-label="Ширина предпросмотра статьи">
+                          <button class="preview-width-tab is-active" type="button" role="radio" aria-checked="true" data-preview-width="desktop">Десктоп</button>
+                          <button class="preview-width-tab" type="button" role="radio" aria-checked="false" data-preview-width="phone">Телефон (375px)</button>
+                        </div>
+                      </div>
                       <div id="postPreview"></div>
                     </div>
                   </div>

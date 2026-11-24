@@ -137,6 +137,7 @@
     categoriesLoading: false,
     categoriesSaving: false,
     contentMode: "editor",
+    previewWidth: "desktop",
     linkSelection: null,
     imageSelection: null,
     editorStatus: "published",
@@ -2060,6 +2061,26 @@
     }
   }
 
+  // Ширина предпросмотра: обычная или «телефон» 375px. Общая для вкладки
+  // «Предпросмотр» и блока полного предпросмотра статьи.
+  function setPreviewWidth(width) {
+    state.previewWidth = width === "phone" ? "phone" : "desktop";
+    var isPhone = state.previewWidth === "phone";
+
+    if (els.contentPreview) {
+      els.contentPreview.classList.toggle("is-phone-preview", isPhone);
+    }
+    if (els.postPreview) {
+      els.postPreview.classList.toggle("is-phone-preview", isPhone);
+    }
+
+    document.querySelectorAll("[data-preview-width]").forEach(function (button) {
+      var active = button.getAttribute("data-preview-width") === state.previewWidth;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-checked", active ? "true" : "false");
+    });
+  }
+
   function openLinkForm() {
     if (!els.linkForm || !els.postContent) return;
     var textarea = els.postContent;
@@ -2158,6 +2179,12 @@
   if (els.contentModePreview) {
     els.contentModePreview.addEventListener("click", function () { setContentMode("preview"); });
   }
+
+  document.querySelectorAll("[data-preview-width]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      setPreviewWidth(button.getAttribute("data-preview-width"));
+    });
+  });
 
   els.postContent.addEventListener("keydown", function (event) {
     if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
@@ -2914,6 +2941,7 @@
 
   renderCoverVariants();
   setCoverVariant("default");
+  setPreviewWidth(state.previewWidth);
   updateContentStats();
   setupConfiguration();
   showLogin();

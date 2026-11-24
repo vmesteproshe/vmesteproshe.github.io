@@ -1941,6 +1941,42 @@ main {
   color: var(--bg);
 }
 
+.preview-head-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.preview-width-tabs {
+  display: inline-flex;
+  border: 1px solid var(--line);
+}
+
+.preview-width-tab {
+  padding: 4px 10px;
+  border: 0;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.preview-width-tab + .preview-width-tab {
+  border-left: 1px solid var(--line);
+}
+
+.preview-width-tab.is-active {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.field--content:not(.is-preview) .preview-width-tabs--inline {
+  display: none;
+}
+
 .link-form {
   display: grid;
   grid-template-columns: 1fr 1fr auto auto;
@@ -2051,9 +2087,18 @@ main {
   border: 1px solid var(--line);
 }
 
-.preview-block .side-label {
+.preview-block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line);
+}
+
+.preview-block__head .side-label {
+  margin-bottom: 0;
 }
 
 .editor-side {
@@ -2840,6 +2885,68 @@ mark {
   overflow: auto;
 }
 
+/* Предпросмотр в ширину телефона (375px) */
+.is-phone-preview {
+  width: 100%;
+  max-width: 375px;
+  margin-right: auto;
+  margin-left: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  box-shadow: 0 2px 12px rgba(17, 17, 17, 0.07);
+}
+
+.is-phone-preview.admin-preview,
+.is-phone-preview .article-body {
+  font-size: 18px;
+  line-height: 1.65;
+}
+
+.is-phone-preview h2,
+.is-phone-preview .article-body h2 {
+  font-size: 26px;
+}
+
+.is-phone-preview h3,
+.is-phone-preview .article-body h3 {
+  font-size: 20px;
+}
+
+.is-phone-preview blockquote,
+.is-phone-preview .article-body blockquote {
+  padding: 22px 20px;
+  font-size: 20px;
+}
+
+.is-phone-preview .article-preview__title {
+  font-size: 37px;
+  line-height: 1;
+  letter-spacing: -0.037em;
+  overflow-wrap: break-word;
+}
+
+.is-phone-preview .article-dek {
+  font-size: 17px;
+}
+
+.is-phone-preview .article-meta {
+  margin-top: 21px;
+}
+
+.is-phone-preview .article-preview__cover {
+  margin-top: 24px;
+}
+
+.is-phone-preview .article-preview .article-body {
+  margin-top: 34px;
+}
+
+.is-phone-preview h2,
+.is-phone-preview h3 {
+  overflow-wrap: break-word;
+}
+
 /* ---------- Админка: предложенные темы ---------- */
 
 .suggestions-list {
@@ -3327,6 +3434,10 @@ mark {
   .editor-toolbar button {
     padding: 8px 10px;
     font-size: 10px;
+  }
+
+  .preview-width-tabs {
+    display: none;
   }
 
   .confirm-actions {
