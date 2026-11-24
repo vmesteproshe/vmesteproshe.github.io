@@ -590,6 +590,15 @@
     window.VP.updateArticleMeta(post);
     feed.innerHTML = readerMarkup(post);
 
+    // Просмотр статьи учитывается и в режиме ?post=..., и при переходе из ленты.
+    window.VP.trackPostView(post).then(function (views) {
+      if (typeof views !== "number") return;
+      state.posts.forEach(function (item) {
+        if (item.id === post.id) item.views_count = views;
+      });
+      state.posts = sortPosts(state.posts);
+    });
+
     window.scrollTo({
       top: 0,
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"

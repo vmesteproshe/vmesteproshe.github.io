@@ -735,6 +735,46 @@
     };
   }
 
+  function viewStorageKey(id) {
+    return "vp_viewed_" + id;
+  }
+
+  // Учитывает просмотр один раз за сессию. Возвращает новое значение views_count
+  // из ответа RPC (или null, если просмотр не был учтён).
+  async function trackPostView(post) {
+    if (!post || !post.id || !client) return null;
+    if (post.status !== "published") return null;
+
+    var id = post.id;
+    var key = viewStorageKey(id);
+
+    try {
+      if (window.sessionStorage.getItem(key) === "1") return null;
+    } catch (error) {
+      // Приватный режим может запрещать sessionStorage — просто не ограничиваем повтор.
+    }
+
+    try {
+      var response = await client.rpc("increment_post_views", {
+        p_post_id: id
+      });
+      if (response.error) throw response.error;
+
+      try {
+        window.sessionStorage.setItem(key, "1");
+      } catch (error) {
+        console.warn("Не удалось сохранить отметку просмотра:", error);
+      }
+
+      var views = Number(response.data);
+      return isFinite(views) && views > 0 ? Math.floor(views) : null;
+    } catch (error) {
+      // Миграция v8 может быть ещё не применена: статья должна открываться без счётчика.
+      console.warn("Не удалось учесть просмотр статьи:", error);
+      return null;
+    }
+  }
+
   function isDevHost() {
     return (
       location.protocol === "file:" ||
@@ -1018,6 +1058,7 @@
     isMissingColumnError: isMissingColumnError,
     fetchPublishedPosts: fetchPublishedPosts,
     fetchPostById: fetchPostById,
+    trackPostView: trackPostView,
     setActiveCategory: setActiveCategory,
     postUrl: postUrl,
     homePostUrl: homePostUrl,

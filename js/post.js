@@ -173,42 +173,6 @@
     }
   }
 
-  function viewStorageKey(id) {
-    return "vp_viewed_" + id;
-  }
-
-  function wasViewed(id) {
-    try {
-      return window.sessionStorage.getItem(viewStorageKey(id)) === "1";
-    } catch (error) {
-      return false;
-    }
-  }
-
-  function markViewed(id) {
-    try {
-      window.sessionStorage.setItem(viewStorageKey(id), "1");
-    } catch (error) {
-      console.warn("Не удалось сохранить отметку просмотра:", error);
-    }
-  }
-
-  async function countView(post) {
-    if (!post || !post.id || !window.VP.supabase) return;
-    if (post.status !== "published" || wasViewed(post.id)) return;
-
-    try {
-      var response = await window.VP.supabase.rpc("increment_post_views", {
-        p_post_id: post.id
-      });
-      if (response.error) throw response.error;
-      markViewed(post.id);
-    } catch (error) {
-      // Миграция v8 может быть ещё не применена: статья должна открываться без счётчика.
-      console.warn("Не удалось учесть просмотр статьи:", error);
-    }
-  }
-
   function bindVote(post) {
     var block = document.getElementById("articleVote");
     if (!block || !window.VP.supabase || !post || !post.id) return;
@@ -362,7 +326,7 @@
     root.innerHTML = articleMarkup(post);
     root.setAttribute("aria-busy", "false");
 
-    countView(post);
+    window.VP.trackPostView(post);
     bindShare();
     bindVote(post);
     updateProgress();
