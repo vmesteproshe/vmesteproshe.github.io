@@ -71,6 +71,7 @@
     contentChars: $("contentChars"),
     contentWords: $("contentWords"),
     contentReadingTime: $("contentReadingTime"),
+    typographyStatus: $("typographyStatus"),
     postContent: $("postContent"),
     postAuthor: $("postAuthor"),
     postPublishAt: $("postPublishAt"),
@@ -149,6 +150,7 @@
   var toastTimer = null;
   var postPreviewTimer = null;
   var aboutPreviewTimer = null;
+  var typographyStatusTimer = null;
 
   /* ---------- Служебное ---------- */
 
@@ -1790,11 +1792,10 @@
   };
 
   // execCommand сохраняет историю отмены Ctrl+Z; setRangeText — запасной вариант.
-  function replaceText(text, start, end, selectStart, selectEnd) {
-    var textarea = els.postContent;
-    textarea.focus();
+  function replaceTextInField(field, text, start, end, selectStart, selectEnd) {
+    field.focus();
     try {
-      textarea.setSelectionRange(start, end);
+      field.setSelectionRange(start, end);
     } catch (error) {
       console.warn("Не удалось восстановить выделение:", error);
     }
@@ -1807,22 +1808,144 @@
     }
 
     if (!inserted) {
-      if (typeof textarea.setRangeText === "function") {
-        textarea.setRangeText(text, start, end, "end");
+      if (typeof field.setRangeText === "function") {
+        field.setRangeText(text, start, end, "end");
       } else {
-        var value = textarea.value;
-        textarea.value = value.slice(0, start) + text + value.slice(end);
+        var value = field.value;
+        field.value = value.slice(0, start) + text + value.slice(end);
       }
     }
 
     var caret = typeof selectStart === "number" ? selectStart : start + text.length;
     var caretEnd = typeof selectEnd === "number" ? selectEnd : caret;
     try {
-      textarea.setSelectionRange(caret, caretEnd);
+      field.setSelectionRange(caret, caretEnd);
     } catch (error) {
       console.warn("Не удалось задать выделение:", error);
     }
-    triggerInput(textarea);
+    triggerInput(field);
+  }
+
+  function replaceText(text, start, end, selectStart, selectEnd) {
+    replaceTextInField(els.postContent, text, start, end, selectStart, selectEnd);
+  }
+
+  /* ---------- Типографика ---------- */
+
+  // Участки, которые нельзя менять: код, URL, ссылки/картинки, HTML и маркеры строк.
+  var TYPO_PROTECT_PATTERN = new RegExp([
+    "```[\\s\\S]*?```",
+    "`[^`\\n]*`",
+    "<!--[\\s\\S]*?-->",
+    "<\\/?[A-Za-z][^>]*>",
+    "!?\\[[^\\]]*\\]\\([^)]*\\)",
+    "\\b(?:https?:\\/\\/|ftp:\\/\\/|www\\.)[^\\s<>\"']+",
+    "^[ \\t]*(?:- \\[[ xX]\\]|---+|\\d+[.)]|[-*+])(?=\\s|$)"
+  ].join("|"), "gm");
+
+  function applyTypography(text) {
+    var source = String(text || "");
+    if (!source) return source;
+
+    var sentinel = "\u0001";
+    var candidates = ["\u0001", "\u0002", "\u0003", "\u0004"];
+    for (var c = 0; c < candidates.length; c += 1) {
+      if (source.indexOf(candidates[c]) === -1) {
+        sentinel = candidates[c];
+        break;
+      }
+    }
+
+    var protectedParts = [];
+    var masked = source.replace(TYPO_PROTECT_PATTERN, function (match) {
+      protectedParts.push(match);
+      return sentinel + (protectedParts.length - 1) + sentinel;
+    });
+
+    // Прямые кавычки превращаются в чередующиеся «…».
+    var quoteOpen = false;
+    masked = masked.replace(/"/g, function () {
+      var mark = quoteOpen ? "\u00BB" : "\u00AB";
+      quoteOpen = !quoteOpen;
+      return mark;
+    });
+
+    // Дефис с пробелами вокруг — длинное тире.
+    masked = masked.replace(/ - /g, " \u2014 ");
+
+    // Повторные пробелы внутри строки, кроме отступов в её начале.
+    masked = masked.split("\n").map(function (line) {
+      var indentMatch = line.match(/^[ \t]*/);
+      var indent = indentMatch ? indentMatch[0] : "";
+      return indent + line.slice(indent.length).replace(/ {2,}/g, " ");
+    }).join("\n");
+
+    // Неразрывный пробел после коротких предлогов и союзов.
+    masked = masked.replace(
+      /(?<![\wА-Яа-яЁё])(во|ко|со|об|и|а|но|на|по|за|из|от|до|не|ни|для|при|без|над|под|про|в|к|с|у|о)( )/gi,
+      function (match, word) {
+        return word + "\u00A0";
+      }
+    );
+
+    var restorePattern = new RegExp(sentinel + "(\\d+)" + sentinel, "g");
+    return masked.replace(restorePattern, function (match, index) {
+      return protectedParts[Number(index)] || "";
+    });
+  }
+
+  function showTypographyStatus() {
+    if (!els.typographyStatus) return;
+    setStatus(els.typographyStatus, "Типографика применена");
+    window.clearTimeout(typographyStatusTimer);
+    typographyStatusTimer = window.setTimeout(function () {
+      setStatus(els.typographyStatus, "");
+    }, 3200);
+  }
+
+  function applyEditorTypography() {
+    var content = els.postContent;
+    var start = content.selectionStart;
+    var end = content.selectionEnd;
+    var changed = false;
+
+    if (end > start) {
+      var selected = content.value.slice(start, end);
+      var selectedResult = applyTypography(selected);
+      if (selectedResult !== selected) {
+        replaceTextInField(content, selectedResult, start, end, start, start + selectedResult.length);
+        changed = true;
+      }
+    } else {
+      var value = content.value;
+      var valueResult = applyTypography(value);
+      if (valueResult !== value) {
+        var caret = Math.min(start, valueResult.length);
+        replaceTextInField(content, valueResult, 0, value.length, caret, caret);
+        changed = true;
+      }
+
+      var title = els.postTitle.value;
+      var titleResult = applyTypography(title);
+      if (titleResult !== title) {
+        replaceTextInField(els.postTitle, titleResult, 0, title.length, titleResult.length, titleResult.length);
+        changed = true;
+      }
+
+      var excerpt = els.postExcerpt.value;
+      var excerptResult = applyTypography(excerpt);
+      if (excerptResult !== excerpt) {
+        replaceTextInField(els.postExcerpt, excerptResult, 0, excerpt.length, excerptResult.length, excerptResult.length);
+        changed = true;
+      }
+    }
+
+    updateExcerptCounter();
+    updateContentStats();
+    if (changed) setArticleDirty(true);
+
+    showTypographyStatus();
+    content.focus();
   }
 
   function toggleInline(markers, placeholder) {
@@ -2007,6 +2130,8 @@
         end: els.postContent.selectionEnd
       };
       els.inlineImageInput.click();
+    } else if (action === "typography") {
+      applyEditorTypography();
     }
   });
 

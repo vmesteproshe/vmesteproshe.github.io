@@ -198,6 +198,7 @@
                       <button type="button" data-action="callout" title="Врезка">Врезка</button>
                       <button type="button" data-action="link" title="Ссылка — Ctrl+K">Ссылка</button>
                       <button type="button" id="inlineImageBtn" data-action="image" title="Картинка">Картинка</button>
+                      <button type="button" data-action="typography" title="Типографика: кавычки, тире, пробелы и неразрывные пробелы">Типограф</button>
                     </div>
                     <div class="link-form" id="linkForm" hidden>
                       <label for="linkText">Текст
@@ -217,6 +218,7 @@
                       <span id="contentWords">0 слов</span>
                       <span id="contentReadingTime">—</span>
                     </p>
+                    <p class="field-status typography-status" id="typographyStatus" role="status" aria-live="polite"></p>
 
                     <div class="inline-upload">
                       <input type="file" id="inlineImageInput" accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/svg+xml" hidden>

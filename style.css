@@ -1979,7 +1979,8 @@ main {
 .field--content.is-preview .link-form,
 .field--content.is-preview .editor-textarea,
 .field--content.is-preview .content-hint,
-.field--content.is-preview .content-stats {
+.field--content.is-preview .content-stats,
+.field--content.is-preview .typography-status {
   display: none;
 }
 
@@ -2030,6 +2031,10 @@ main {
 .content-stats span + span {
   padding-left: 20px;
   border-left: 1px solid var(--line);
+}
+
+.typography-status {
+  margin-top: 7px;
 }
 
 .inline-upload {
