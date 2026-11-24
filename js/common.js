@@ -743,7 +743,9 @@
   // из ответа RPC (или null, если просмотр не был учтён).
   async function trackPostView(post) {
     if (!post || !post.id || !client) return null;
-    if (post.status !== "published") return null;
+    // Статус может отсутствовать (например, в данных списка) — в этом случае
+    // отправляем RPC: проверка status = 'published' выполняется внутри SQL-функции.
+    if (post.status && post.status !== "published") return null;
 
     var id = post.id;
     var key = viewStorageKey(id);
