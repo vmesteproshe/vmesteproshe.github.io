@@ -735,42 +735,33 @@
     };
   }
 
-  function viewStorageKey(id) {
-    return "vp_viewed_" + id;
-  }
+  // Отметки ставятся в памяти: sessionStorage переживает перезагрузку вкладки,
+  // из-за чего устаревшая отметка полностью блокировала RPC на свежей странице.
+  var trackedViewIds = Object.create(null);
 
-  // Учитывает просмотр один раз за сессию. Возвращает новое значение views_count
-  // из ответа RPC (или null, если просмотр не был учтён).
+  // Учитывает просмотр один раз за сессию страницы. Возвращает новое значение
+  // views_count из ответа RPC (или null, если просмотр не был учтён).
   async function trackPostView(post) {
     if (!post || !post.id || !client) return null;
-    // Статус может отсутствовать (например, в данных списка) — в этом случае
-    // отправляем RPC: проверка status = 'published' выполняется внутри SQL-функции.
-    if (post.status && post.status !== "published") return null;
 
-    var id = post.id;
-    var key = viewStorageKey(id);
+    var id = String(post.id);
+    if (trackedViewIds[id]) return null;
+    trackedViewIds[id] = true;
 
     try {
-      if (window.sessionStorage.getItem(key) === "1") return null;
-    } catch (error) {
-      // Приватный режим может запрещать sessionStorage — просто не ограничиваем повтор.
-    }
-
-    try {
+      // Клиент берём из той же переменной client, что и остальные функции common.js.
+      // Проверку status = 'published' выполняет сама SQL-функция, поэтому
+      // дополнительных ранних return по полю status здесь нет.
       var response = await client.rpc("increment_post_views", {
         p_post_id: id
       });
       if (response.error) throw response.error;
 
-      try {
-        window.sessionStorage.setItem(key, "1");
-      } catch (error) {
-        console.warn("Не удалось сохранить отметку просмотра:", error);
-      }
-
       var views = Number(response.data);
       return isFinite(views) && views > 0 ? Math.floor(views) : null;
     } catch (error) {
+      // Даём повторить попытку при следующем открытии статьи в этой сессии.
+      delete trackedViewIds[id];
       // Миграция v8 может быть ещё не применена: статья должна открываться без счётчика.
       console.warn("Не удалось учесть просмотр статьи:", error);
       return null;

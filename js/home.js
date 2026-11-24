@@ -575,6 +575,23 @@
       "</section>";
   }
 
+  // Единая точка учёта просмотра: сюда приходят и прямой заход по ?post=...,
+  // и клик по карточке в ленте, и возврат по истории браузера.
+  var trackedViewIds = Object.create(null);
+
+  function trackCurrentPostView(post) {
+    if (!post || !post.id || trackedViewIds[post.id]) return;
+    trackedViewIds[post.id] = true;
+
+    window.VP.trackPostView(post).then(function (views) {
+      if (typeof views !== "number") return;
+      state.posts.forEach(function (item) {
+        if (item.id === post.id) item.views_count = views;
+      });
+      state.posts = sortPosts(state.posts);
+    });
+  }
+
   function renderReader() {
     var post = state.posts.find(function (item) {
       return item.id === state.postId;
@@ -591,13 +608,7 @@
     feed.innerHTML = readerMarkup(post);
 
     // Просмотр статьи учитывается и в режиме ?post=..., и при переходе из ленты.
-    window.VP.trackPostView(post).then(function (views) {
-      if (typeof views !== "number") return;
-      state.posts.forEach(function (item) {
-        if (item.id === post.id) item.views_count = views;
-      });
-      state.posts = sortPosts(state.posts);
-    });
+    trackCurrentPostView(post);
 
     window.scrollTo({
       top: 0,
