@@ -519,7 +519,7 @@
 
     template.content.querySelectorAll("a[href]").forEach(function (link) {
       var href = link.getAttribute("href") || "";
-      if (/^https?:\/\//i.test(href)) {
+      if (/^(?:https?:)?\/\//i.test(href)) {
         link.setAttribute("target", "_blank");
         link.setAttribute("rel", "noopener noreferrer");
       }
