@@ -36,6 +36,7 @@ create table if not exists public.posts (
   helpful_no  int not null default 0,
   is_featured boolean not null default false,
   status      text not null default 'published' check (status in ('draft', 'published')),
+  publish_at  timestamptz,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -47,6 +48,7 @@ comment on column public.posts.helpful_yes is 'Количество оценок
 comment on column public.posts.helpful_no is 'Количество оценок «Не хватило деталей»';
 comment on column public.posts.is_featured is 'Главный материал на первой странице';
 comment on column public.posts.status is 'draft = черновик, published = опубликовано';
+comment on column public.posts.publish_at is 'Дата и время публикации: null — сразу, будущее значение — отложенный выход материала';
 
 -- ---------- Страницы ----------
 create table if not exists public.pages (
@@ -106,7 +108,7 @@ create policy "posts_anon_read"
   on public.posts
   for select
   to anon
-  using (status = 'published');
+  using (status = 'published' and (publish_at is null or publish_at <= now()));
 
 create policy "posts_auth_read"
   on public.posts

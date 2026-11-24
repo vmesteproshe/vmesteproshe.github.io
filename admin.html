@@ -85,6 +85,16 @@
                 <p class="admin-sub" id="postsCount"></p>
               </div>
               <div class="admin-head-actions">
+                <label class="admin-filter admin-filter--search" for="postSearch">
+                  <span>Поиск</span>
+                  <input class="field-input field-input--small" type="search" id="postSearch" placeholder="Заголовок или автор" autocomplete="off">
+                </label>
+                <label class="admin-filter" for="categoryFilter">
+                  <span>Рубрика</span>
+                  <select class="field-input field-input--small" id="categoryFilter">
+                    <option value="all">Все</option>
+                  </select>
+                </label>
                 <label class="admin-filter" for="statusFilter">
                   <span>Статус</span>
                   <select class="field-input field-input--small" id="statusFilter">
@@ -258,6 +268,11 @@
                           <span>Опубликовано</span>
                         </label>
                       </div>
+                    </div>
+                    <div class="field">
+                      <label for="postPublishAt">Дата публикации <span class="field-optional">необязательно</span></label>
+                      <input class="field-input" type="datetime-local" id="postPublishAt">
+                      <p class="field-hint">Оставьте пустым, чтобы материал появился на сайте сразу после сохранения. Указанное время действует для опубликованных статей.</p>
                     </div>
                     <label class="checkbox">
                       <input type="checkbox" id="postFeatured">

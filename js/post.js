@@ -307,7 +307,9 @@
       return;
     }
 
-    if (!response.data || response.data.status === "draft") {
+    if (!response.data || response.data.status === "draft" ||
+        (typeof window.VP.isPubliclyVisible === "function" &&
+          !window.VP.isPubliclyVisible(response.data))) {
       root.setAttribute("aria-busy", "false");
       root.innerHTML = errorMarkup({
         eyebrow: "404",

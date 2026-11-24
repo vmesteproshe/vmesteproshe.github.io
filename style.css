@@ -2591,6 +2591,14 @@ mark {
   text-transform: uppercase;
 }
 
+.admin-filter--search {
+  flex: 1 1 220px;
+}
+
+.admin-filter--search .field-input {
+  min-width: 180px;
+}
+
 .field-input--small {
   min-height: 40px;
   padding: 8px 10px;
@@ -2613,6 +2621,11 @@ mark {
 .admin-status--draft {
   background: #fff3cd;
   color: #7a5b00;
+}
+
+.admin-status--scheduled {
+  background: #e8eff8;
+  color: #2c5685;
 }
 
 .field-label {

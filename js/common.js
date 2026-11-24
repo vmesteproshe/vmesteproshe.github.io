@@ -454,6 +454,18 @@
     return !post || !post.status || post.status === "published";
   }
 
+  // Публикация доступна только после наступления publish_at (если он задан).
+  // Проверка дублирует RLS и защиты от старой схемы без колонки publish_at.
+  function isPubliclyVisible(post) {
+    if (!post) return false;
+    if (post.status && post.status !== "published") return false;
+    if (post.publish_at) {
+      var time = new Date(post.publish_at).getTime();
+      if (isFinite(time) && time > Date.now()) return false;
+    }
+    return true;
+  }
+
   function isMissingColumnError(error) {
     var message = error && (error.message || error.details || error.hint);
     return /42703|PGRST204|column .* does not exist|schema cache/i.test(String(message || ""));
@@ -644,6 +656,8 @@
   }
 
   var POST_FIELDS_FULL =
+    "id,title,category,excerpt,content,cover_url,cover_variant,author,status,is_featured,created_at,publish_at";
+  var POST_FIELDS_NO_SCHEDULE =
     "id,title,category,excerpt,content,cover_url,cover_variant,author,status,is_featured,created_at";
   var POST_FIELDS_LEGACY =
     "id,title,category,excerpt,content,cover_url,is_featured,created_at";
@@ -670,7 +684,12 @@
     var response = await buildQuery(POST_FIELDS_FULL, true);
     var legacy = false;
 
-    // Если миграция ещё не применена, читаем старую схему и считаем все статьи опубликованными.
+    // Миграция v7 ещё не применена: читаем без publish_at, но только опубликованные.
+    if (response.error && isMissingColumnError(response.error)) {
+      response = await buildQuery(POST_FIELDS_NO_SCHEDULE, true);
+    }
+
+    // Очень старая схема: нет и статусов — считаем все статьи опубликованными.
     if (response.error && isMissingColumnError(response.error)) {
       response = await buildQuery(POST_FIELDS_LEGACY, false);
       legacy = true;
@@ -681,7 +700,9 @@
     }
 
     return {
-      data: (Array.isArray(response.data) ? response.data : []).map(normalizePost),
+      data: (Array.isArray(response.data) ? response.data : [])
+        .map(normalizePost)
+        .filter(isPubliclyVisible),
       error: null,
       legacy: legacy
     };
@@ -693,8 +714,9 @@
     var response = await client.from("posts").select("*").eq("id", id).maybeSingle();
     if (response.error) return { data: null, error: response.error };
 
+    var post = response.data ? normalizePost(response.data) : null;
     return {
-      data: response.data ? normalizePost(response.data) : null,
+      data: post && isPubliclyVisible(post) ? post : null,
       error: null
     };
   }
@@ -978,6 +1000,7 @@
     normalizeCoverVariant: normalizeCoverVariant,
     normalizePost: normalizePost,
     isPublished: isPublished,
+    isPubliclyVisible: isPubliclyVisible,
     isMissingColumnError: isMissingColumnError,
     fetchPublishedPosts: fetchPublishedPosts,
     fetchPostById: fetchPostById,

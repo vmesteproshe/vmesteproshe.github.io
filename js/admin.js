@@ -38,6 +38,8 @@
     aboutPanel: $("aboutPanel"),
     postsCount: $("postsCount"),
     postsList: $("postsList"),
+    postSearch: $("postSearch"),
+    categoryFilter: $("categoryFilter"),
     statusFilter: $("statusFilter"),
     newPostBtn: $("newPostBtn"),
     suggestionsCount: $("suggestionsCount"),
@@ -71,6 +73,7 @@
     contentReadingTime: $("contentReadingTime"),
     postContent: $("postContent"),
     postAuthor: $("postAuthor"),
+    postPublishAt: $("postPublishAt"),
     editorToolbar: $("editorToolbar"),
     contentField: $("contentField"),
     contentModeEditor: $("contentModeEditor"),
@@ -123,6 +126,8 @@
     editorDirty: false,
     unsavedChanges: false,
     statusFilter: "all",
+    categoryFilter: "all",
+    searchQuery: "",
     coverVariant: "default",
     suggestions: [],
     suggestionsLoaded: false,
@@ -170,7 +175,7 @@
       return "Нет прав на это действие. Проверьте RLS-политики и войдите заново.";
     }
     if (/42703|column .* does not exist|PGRST204/i.test(message)) {
-      return "В базе нет новых полей. Выполните sql/migration_v3.sql в Supabase.";
+      return "В базе нет новых полей. Проверьте SQL-миграции в папке sql (migration_v3.sql, migration_v7.sql).";
     }
     if (/schema cache|does not exist|42P01/i.test(message)) {
       return "Таблица не найдена. Выполните SQL-скрипты из папки sql.";
@@ -282,6 +287,37 @@
     return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) + ", " + clock;
   }
 
+  function parsePublishDate(value) {
+    if (!value) return null;
+    var date = new Date(value);
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  function isFuturePublish(value) {
+    var date = parsePublishDate(value);
+    return Boolean(date && date.getTime() > Date.now());
+  }
+
+  function pad2(value) {
+    return String(value).padStart(2, "0");
+  }
+
+  // Значение для поля datetime-local: местное время без секунд и таймзоны.
+  function toDateTimeInputValue(value) {
+    var date = parsePublishDate(value);
+    if (!date) return "";
+    return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate()) +
+      "T" + pad2(date.getHours()) + ":" + pad2(date.getMinutes());
+  }
+
+  // Метка в списке статей: «ДД.ММ ЧЧ:ММ».
+  function formatScheduleLabel(value) {
+    var date = parsePublishDate(value);
+    if (!date) return "";
+    return pad2(date.getDate()) + "." + pad2(date.getMonth() + 1) +
+      " " + pad2(date.getHours()) + ":" + pad2(date.getMinutes());
+  }
+
   function localDraftData() {
     return {
       title: els.postTitle ? els.postTitle.value : "",
@@ -290,6 +326,7 @@
       category: els.postCategory ? els.postCategory.value : "money",
       author: els.postAuthor ? els.postAuthor.value : "",
       status: getEditorStatus(),
+      publish_at: els.postPublishAt ? els.postPublishAt.value : "",
       is_featured: Boolean(els.postFeatured && els.postFeatured.checked),
       cover_url: els.coverUrl ? els.coverUrl.value : "",
       cover_variant: state.coverVariant
@@ -351,6 +388,9 @@
 
     if (els.postAuthor) {
       els.postAuthor.value = typeof draft.author === "string" ? draft.author : "";
+    }
+    if (els.postPublishAt) {
+      els.postPublishAt.value = typeof draft.publish_at === "string" ? draft.publish_at : "";
     }
     els.postFeatured.checked = Boolean(draft.is_featured);
 
@@ -682,6 +722,7 @@
       await fetchPosts();
       if (VP.fetchCategories) await VP.fetchCategories();
       refreshCategoryOptions();
+      refreshCategoryFilterOptions();
       els.adminLoading.hidden = true;
       els.adminWorkspace.hidden = false;
       showPanel("posts");
@@ -734,6 +775,10 @@
               VP.escapeHtml(VP.formatDate(post.created_at, true)) + "</time>" +
             '<span class="admin-status ' + (isDraft ? "admin-status--draft" : "admin-status--published") + '">' +
               (isDraft ? "Черновик" : "Опубликовано") + "</span>" +
+            (!isDraft && isFuturePublish(post.publish_at)
+              ? '<span class="admin-status admin-status--scheduled">Запланировано на ' +
+                VP.escapeHtml(formatScheduleLabel(post.publish_at)) + "</span>"
+              : "") +
             (post.is_featured ? '<span class="admin-featured-badge">Главная</span>' : "") +
           "</div>" +
           '<h3 class="admin-post__title">' +
@@ -752,6 +797,13 @@
     );
   }
 
+  function matchesPostQuery(post, query) {
+    return (
+      String(post.title || "").toLowerCase().indexOf(query) !== -1 ||
+      String(post.author || "").toLowerCase().indexOf(query) !== -1
+    );
+  }
+
   function renderPosts() {
     var total = state.posts.length;
     var drafts = state.posts.filter(function (post) { return post.status === "draft"; }).length;
@@ -763,11 +815,13 @@
         " · " + drafts + " " + VP.plural(drafts, ["черновик", "черновика", "черновиков"])
       : "Пока ни одной статьи";
 
-    var posts = state.statusFilter === "all"
-      ? state.posts
-      : state.posts.filter(function (post) {
-          return post.status === state.statusFilter;
-        });
+    var query = state.searchQuery.toLowerCase();
+    var posts = state.posts.filter(function (post) {
+      if (state.statusFilter !== "all" && post.status !== state.statusFilter) return false;
+      if (state.categoryFilter !== "all" && post.category !== state.categoryFilter) return false;
+      if (query && !matchesPostQuery(post, query)) return false;
+      return true;
+    });
 
     if (!total) {
       els.postsList.innerHTML =
@@ -780,7 +834,7 @@
 
     if (!posts.length) {
       els.postsList.innerHTML =
-        '<div class="admin-empty"><p>Нет материалов с таким статусом.</p></div>';
+        '<div class="admin-empty"><p>Нет материалов, подходящих под выбранные фильтры.</p></div>';
       return;
     }
 
@@ -840,7 +894,40 @@
     });
   }
 
+  if (els.postSearch) {
+    els.postSearch.addEventListener("input", function () {
+      state.searchQuery = els.postSearch.value.trim();
+      renderPosts();
+    });
+  }
+
+  if (els.categoryFilter) {
+    els.categoryFilter.addEventListener("change", function () {
+      state.categoryFilter = els.categoryFilter.value;
+      renderPosts();
+    });
+  }
+
   /* ---------- Рубрики ---------- */
+
+  function refreshCategoryFilterOptions() {
+    if (!els.categoryFilter) return;
+
+    var list = VP.categories || [];
+    if (!list.length) return;
+
+    els.categoryFilter.innerHTML = '<option value="all">Все</option>' + list.map(function (category) {
+      return '<option value="' + VP.escapeHtml(category.id) + '">' +
+        VP.escapeHtml(category.label) + "</option>";
+    }).join("");
+
+    var exists = state.categoryFilter === "all" ||
+      Array.prototype.some.call(els.categoryFilter.options, function (option) {
+        return option.value === state.categoryFilter;
+      });
+    state.categoryFilter = exists ? state.categoryFilter : "all";
+    els.categoryFilter.value = state.categoryFilter;
+  }
 
   function refreshCategoryOptions() {
     if (!els.postCategory) return;
@@ -1125,6 +1212,7 @@
   }
   document.addEventListener("vp:categories", function () {
     refreshCategoryOptions();
+    refreshCategoryFilterOptions();
     if (els.categoriesPanel && !els.categoriesPanel.hidden) renderCategories();
   });
 
@@ -1344,6 +1432,9 @@
     }
 
     setEditorStatus(post && post.status === "draft" ? "draft" : "published");
+    if (els.postPublishAt) {
+      els.postPublishAt.value = post ? toDateTimeInputValue(post.publish_at) : "";
+    }
     state.coverVariant = VP.normalizeCoverVariant(post ? post.cover_variant : "default");
     setCover(post ? post.cover_url || "" : "");
     setCoverVariant(state.coverVariant);
@@ -1450,6 +1541,19 @@
       return null;
     }
 
+    var publishAtValue = els.postPublishAt ? els.postPublishAt.value : "";
+    var publishAt = null;
+    if (publishAtValue) {
+      var publishDate = parsePublishDate(publishAtValue);
+      if (!publishDate) {
+        els.postFormError.textContent = "Проверьте дату публикации.";
+        els.postFormError.hidden = false;
+        els.postPublishAt.focus();
+        return null;
+      }
+      publishAt = publishDate.toISOString();
+    }
+
     return {
       title: title,
       category: category,
@@ -1459,6 +1563,7 @@
       cover_url: els.coverUrl.value.trim() || null,
       cover_variant: state.coverVariant,
       status: getEditorStatus(),
+      publish_at: publishAt,
       is_featured: els.postFeatured.checked
     };
   }
@@ -1479,6 +1584,14 @@
       .maybeSingle();
   }
 
+  function missingColumnName(error) {
+    var message = String((error && (error.message || error.details || error.hint)) || "");
+    var match = message.match(/could not find the '([^']+)' column/i) ||
+      message.match(/column\s+"?([a-z_][a-z0-9_]*)"?\s+of relation/i) ||
+      message.match(/column\s+(?:[a-z_][a-z0-9_]*\.)?"?([a-z_][a-z0-9_]*)"?\s+does not exist/i);
+    return match ? match[1] : null;
+  }
+
   async function savePost() {
     if (!supabase) return;
     var payload = postPayload();
@@ -1496,27 +1609,36 @@
       var response = await performPostSave(payload);
       var usedLegacy = false;
 
-      // Если колонка author ещё не добавлена, сохраняем без неё.
-      if (response.error && VP.isMissingColumnError && VP.isMissingColumnError(response.error)) {
-        var retryPayload = Object.assign({}, payload);
-        delete retryPayload.author;
+      // Если миграция ещё не применена, сохраняем без отсутствующих колонок.
+      var retryPayload = Object.assign({}, payload);
+      var attempts = 0;
+      while (
+        response.error &&
+        VP.isMissingColumnError && VP.isMissingColumnError(response.error) &&
+        attempts < 5
+      ) {
+        var name = missingColumnName(response.error);
+        var errorMessage = String(
+          (response.error && (response.error.message || response.error.details || response.error.hint)) || ""
+        );
+        if (payload.publish_at && (name === "publish_at" || /publish_at/i.test(errorMessage))) {
+          throw new Error("В базе нет колонки publish_at. Выполните sql/migration_v7.sql, чтобы сохранить дату публикации.");
+        }
 
-        var retry = await performPostSave(retryPayload);
-        if (!retry.error) {
-          response = retry;
-          usedLegacy = true;
-        } else if (VP.isMissingColumnError(retry.error)) {
-          // Более старая схема: нет и статусов, и стилей обложки.
-          var legacyPayload = Object.assign({}, retryPayload);
-          delete legacyPayload.status;
-          delete legacyPayload.cover_variant;
-
-          var legacyRetry = await performPostSave(legacyPayload);
-          if (!legacyRetry.error) {
-            response = legacyRetry;
-            usedLegacy = true;
+        var candidates = name ? [name] : ["author", "status", "cover_variant", "publish_at"];
+        var removed = false;
+        for (var index = 0; index < candidates.length; index += 1) {
+          if (Object.prototype.hasOwnProperty.call(retryPayload, candidates[index])) {
+            delete retryPayload[candidates[index]];
+            removed = true;
+            break;
           }
         }
+        if (!removed) break;
+
+        response = await performPostSave(retryPayload);
+        usedLegacy = true;
+        attempts += 1;
       }
 
       if (response.error) throw response.error;
@@ -1550,7 +1672,7 @@
       }
 
       if (usedLegacy) {
-        toast("Сохранено. Чтобы включить автора, статусы и стили обложек, выполните sql/migration_v3.sql.", true);
+        toast("Сохранено без некоторых полей. Проверьте SQL-миграции в папке sql (migration_v3.sql, migration_v7.sql).", true);
       } else if (wasEditing) {
         toast(isDraft ? "Черновик обновлён." : "Статья обновлена.");
       } else {
