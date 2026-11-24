@@ -59,6 +59,32 @@
     });
   }
 
+  // Рубрики всегда упорядочены по sort_order, затем по id из БД.
+  function categorySortValue(item) {
+    var value = item && item.sort_order != null ? item.sort_order : item && item.sortOrder;
+    return Number(value) || 0;
+  }
+
+  function categoryDbId(item) {
+    if (!item) return null;
+    var value = item.dbId != null ? item.dbId : item.id;
+    var number = Number(value);
+    return isNaN(number) ? null : number;
+  }
+
+  function compareCategories(a, b) {
+    var byOrder = categorySortValue(a) - categorySortValue(b);
+    if (byOrder) return byOrder;
+
+    var idA = categoryDbId(a);
+    var idB = categoryDbId(b);
+    if (idA !== null && idB !== null && idA !== idB) return idA - idB;
+
+    var nameA = String((a && (a.name || a.label)) || "");
+    var nameB = String((b && (b.name || b.label)) || "");
+    return nameA.localeCompare(nameB, "ru");
+  }
+
   rebuildCategoryMap();
 
   function categoryLabelFromId(id) {
@@ -91,15 +117,59 @@
     return slugifyHeading(value) || "rubric-" + dbId;
   }
 
+  function persistCategories() {
+    var stored = categories.map(function (category) {
+      return {
+        id: category.id,
+        label: category.label,
+        description: category.description,
+        dbId: category.dbId || null,
+        sortOrder: Number(category.sortOrder) || 0
+      };
+    });
+
+    try {
+      window.localStorage.setItem(CATEGORY_CACHE_KEY, JSON.stringify(stored));
+    } catch (error) {
+      console.warn("Не удалось кэшировать рубрики:", error);
+    }
+  }
+
+  // Применяет новый порядок рубрик к интерфейсу и кэшу (после сохранения в БД).
+  function applyCategoryOrder(orderedIds) {
+    if (!Array.isArray(orderedIds) || !orderedIds.length) return false;
+
+    var byId = {};
+    categories.forEach(function (category) {
+      byId[category.id] = category;
+    });
+
+    var ordered = [];
+    orderedIds.forEach(function (id) {
+      var category = byId[id];
+      if (category && ordered.indexOf(category) === -1) ordered.push(category);
+    });
+    categories.forEach(function (category) {
+      if (ordered.indexOf(category) === -1) ordered.push(category);
+    });
+    if (!ordered.length) return false;
+
+    ordered.forEach(function (category, index) {
+      category.sortOrder = index;
+    });
+    categories.splice.apply(categories, [0, categories.length].concat(ordered));
+    rebuildCategoryMap();
+    persistCategories();
+    syncSuggestCategories();
+    syncCategoryNav();
+    document.dispatchEvent(new CustomEvent("vp:categories", { detail: categories.slice() }));
+    return true;
+  }
+
   function applyCategoryRows(rows, persist) {
     if (!Array.isArray(rows) || !rows.length) return false;
 
-    var sorted = rows.slice().sort(function (a, b) {
-      var orderA = Number(a.sort_order) || 0;
-      var orderB = Number(b.sort_order) || 0;
-      if (orderA !== orderB) return orderA - orderB;
-      return String(a.name || "").localeCompare(String(b.name || ""), "ru");
-    });
+    var sorted = rows.slice().sort(compareCategories);
 
     var used = {};
     var mapped = [];
@@ -126,13 +196,7 @@
     categories.splice.apply(categories, [0, categories.length].concat(mapped));
     rebuildCategoryMap();
 
-    if (persist) {
-      try {
-        window.localStorage.setItem(CATEGORY_CACHE_KEY, JSON.stringify(mapped));
-      } catch (error) {
-        console.warn("Не удалось кэшировать рубрики:", error);
-      }
-    }
+    if (persist) persistCategories();
 
     document.dispatchEvent(new CustomEvent("vp:categories", { detail: categories.slice() }));
     return true;
@@ -157,6 +221,7 @@
       });
 
       if (!cached.length) return false;
+      cached.sort(compareCategories);
       categories.splice.apply(categories, [0, categories.length].concat(cached));
       rebuildCategoryMap();
       return true;
@@ -204,7 +269,7 @@
         .from("categories")
         .select("id,name,sort_order")
         .order("sort_order", { ascending: true })
-        .order("name", { ascending: true });
+        .order("id", { ascending: true });
 
       if (response.error) {
         categoriesLoaded = false;
@@ -855,6 +920,7 @@
     supabase: client,
     categories: categories,
     fetchCategories: fetchCategories,
+    applyCategoryOrder: applyCategoryOrder,
     coverVariants: COVER_VARIANTS,
     getCategory: getCategory,
     escapeHtml: escapeHtml,

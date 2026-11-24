@@ -1180,6 +1180,71 @@ main {
   color: var(--accent);
 }
 
+.article-vote {
+  max-width: 700px;
+  margin: 36px auto 0;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.article-vote__title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.article-vote__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.vote-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.vote-btn:hover:not(:disabled) {
+  border-color: var(--text);
+}
+
+.vote-btn.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.vote-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.vote-btn.is-active:disabled {
+  opacity: 1;
+}
+
+.vote-btn__count {
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.article-vote__status {
+  min-height: 18px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .article-state {
   max-width: 700px;
   margin: 0 auto;
@@ -1621,6 +1686,34 @@ main {
   margin: 0;
 }
 
+.category-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sort-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
+  transition: border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.sort-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sort-btn:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
 /* ---------- Список статей ---------- */
 
 .posts-list {
@@ -1721,6 +1814,14 @@ main {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
+}
+
+.admin-post__rating {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .admin-post__actions {
@@ -3272,6 +3373,7 @@ mark {
   .site-header,
   .site-footer,
   .article-footer,
+  .article-vote,
   .related,
   .reading-progress,
   .skip-link {

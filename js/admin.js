@@ -123,6 +123,7 @@
     suggestionsLoading: false,
     categoriesLoaded: false,
     categoriesLoading: false,
+    categoriesSaving: false,
     contentMode: "editor",
     linkSelection: null,
     imageSelection: null,
@@ -647,6 +648,12 @@
   function postRowMarkup(post) {
     var category = VP.getCategory(post.category);
     var isDraft = post.status === "draft";
+    var helpfulYes = Number(post.helpful_yes) || 0;
+    var helpfulNo = Number(post.helpful_no) || 0;
+    var rating = helpfulYes + helpfulNo
+      ? '<p class="admin-post__rating">Помогло: ' + helpfulYes +
+        " · Не хватило деталей: " + helpfulNo + "</p>"
+      : "";
     return (
       '<article class="admin-post">' +
         thumbnailMarkup(post) +
@@ -665,6 +672,7 @@
             "</button>" +
           "</h3>" +
           (post.excerpt ? '<p class="admin-post__excerpt">' + VP.escapeHtml(post.excerpt) + "</p>" : "") +
+          rating +
         "</div>" +
         '<div class="admin-post__actions">' +
           '<button class="text-btn" type="button" data-edit="' + VP.escapeHtml(post.id) + '">Редактировать</button>' +
@@ -782,20 +790,29 @@
     els.postCategory.value = exists ? previous : els.postCategory.options[0].value;
   }
 
-  function categoryRowMarkup(category) {
+  function categoryRowMarkup(category, index, total) {
     var count = state.posts.filter(function (post) {
       return post.category === category.id;
     }).length;
+    var id = VP.escapeHtml(category.id);
+    var upDisabled = index === 0 || state.categoriesSaving ? " disabled" : "";
+    var downDisabled = index === total - 1 || state.categoriesSaving ? " disabled" : "";
 
     return (
       '<article class="category-row">' +
         '<div class="category-row__info">' +
           '<strong>' + VP.escapeHtml(category.label) + "</strong>" +
-          '<span class="field-hint">' + VP.escapeHtml(category.id) +
+          '<span class="field-hint">' + id +
             " · " + count + " " + VP.plural(count, ["статья", "статьи", "статей"]) + "</span>" +
         "</div>" +
-        '<button class="text-btn text-btn--danger" type="button" data-category-delete="' +
-          VP.escapeHtml(category.id) + '">Удалить</button>' +
+        '<div class="category-row__actions">' +
+          '<button class="sort-btn" type="button" data-category-move="up" data-category-id="' + id +
+            '" aria-label="Поднять рубрику «' + VP.escapeHtml(category.label) + '»" title="Выше"' + upDisabled + ">↑</button>" +
+          '<button class="sort-btn" type="button" data-category-move="down" data-category-id="' + id +
+            '" aria-label="Опустить рубрику «' + VP.escapeHtml(category.label) + '»" title="Ниже"' + downDisabled + ">↓</button>" +
+          '<button class="text-btn text-btn--danger" type="button" data-category-delete="' + id +
+            '"' + (state.categoriesSaving ? " disabled" : "") + ">Удалить</button>" +
+        "</div>" +
       "</article>"
     );
   }
@@ -811,7 +828,9 @@
     }
 
     els.categoriesList.innerHTML = list.length
-      ? list.map(categoryRowMarkup).join("")
+      ? list.map(function (category, index) {
+          return categoryRowMarkup(category, index, list.length);
+        }).join("")
       : '<div class="admin-empty"><p>Рубрики пока не загружены.</p></div>';
   }
 
@@ -906,6 +925,57 @@
     }
   }
 
+  async function moveCategory(id, direction) {
+    if (!supabase || state.categoriesSaving) return;
+
+    var list = (VP.categories || []).slice();
+    var index = -1;
+    list.forEach(function (category, position) {
+      if (category.id === id) index = position;
+    });
+    if (index < 0) return;
+
+    var target = index + direction;
+    if (target < 0 || target >= list.length) return;
+
+    var moved = list[index];
+    list[index] = list[target];
+    list[target] = moved;
+
+    state.categoriesSaving = true;
+    renderCategories();
+    setStatus(els.categoryFormStatus, "Сохраняем порядок…");
+
+    try {
+      // Пересчитываем sort_order заново: старые значения могут быть одинаковыми.
+      var order = 0;
+      for (var position = 0; position < list.length; position += 1) {
+        if (!list[position].dbId) continue;
+        var response = await supabase
+          .from("categories")
+          .update({ sort_order: order })
+          .eq("id", list[position].dbId);
+        if (response.error) throw response.error;
+        order += 1;
+      }
+
+      if (VP.applyCategoryOrder) {
+        VP.applyCategoryOrder(list.map(function (category) { return category.id; }));
+      } else {
+        renderCategories();
+      }
+      setStatus(els.categoryFormStatus, "");
+      toast("Порядок рубрик сохранён.");
+    } catch (error) {
+      console.error("Ошибка сохранения порядка рубрик:", error);
+      setStatus(els.categoryFormStatus, apiErrorMessage(error), true);
+      toast("Не удалось сохранить порядок рубрик.", true);
+    } finally {
+      state.categoriesSaving = false;
+      renderCategories();
+    }
+  }
+
   async function deleteCategory(id) {
     if (!supabase) return;
 
@@ -970,6 +1040,15 @@
   }
   if (els.categoriesList) {
     els.categoriesList.addEventListener("click", function (event) {
+      var moveTrigger = event.target.closest("[data-category-move]");
+      if (moveTrigger) {
+        moveCategory(
+          moveTrigger.getAttribute("data-category-id"),
+          moveTrigger.getAttribute("data-category-move") === "up" ? -1 : 1
+        );
+        return;
+      }
+
       var trigger = event.target.closest("[data-category-delete]");
       if (trigger) deleteCategory(trigger.getAttribute("data-category-delete"));
     });

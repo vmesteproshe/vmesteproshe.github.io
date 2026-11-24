@@ -32,6 +32,8 @@ create table if not exists public.posts (
   content     text not null default '',
   cover_url   text,
   author      text,
+  helpful_yes int not null default 0,
+  helpful_no  int not null default 0,
   is_featured boolean not null default false,
   status      text not null default 'published' check (status in ('draft', 'published')),
   created_at  timestamptz not null default now(),
@@ -41,6 +43,8 @@ create table if not exists public.posts (
 comment on table public.posts is 'Статьи гида «Вместе проще»';
 comment on column public.posts.category is 'Идентификатор рубрики из public.categories (для базовых рубрик: money, home, docs, relationships)';
 comment on column public.posts.author is 'Автор материала (необязательно)';
+comment on column public.posts.helpful_yes is 'Количество оценок «Помогло»';
+comment on column public.posts.helpful_no is 'Количество оценок «Не хватило деталей»';
 comment on column public.posts.is_featured is 'Главный материал на первой странице';
 comment on column public.posts.status is 'draft = черновик, published = опубликовано';
 
@@ -192,3 +196,30 @@ create policy "categories_authenticated_delete"
   for delete
   to authenticated
   using (true);
+
+-- ---------- Короткая оценка статьи ----------
+-- Прямой UPDATE таблицы posts для anon не открыт: счётчики меняет только функция.
+
+create or replace function public.vote_post(p_post_id uuid, p_vote text)
+returns table (helpful_yes int, helpful_no int)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_vote is null or p_vote not in ('yes', 'no') then
+    raise exception 'Недопустимое значение голоса: %', p_vote;
+  end if;
+
+  return query
+    update public.posts as p
+       set helpful_yes = case when p_vote = 'yes' then p.helpful_yes + 1 else p.helpful_yes end,
+           helpful_no  = case when p_vote = 'no'  then p.helpful_no  + 1 else p.helpful_no  end
+     where p.id = p_post_id
+       and p.status = 'published'
+    returning p.helpful_yes, p.helpful_no;
+end;
+$$;
+
+revoke all on function public.vote_post(uuid, text) from public;
+grant execute on function public.vote_post(uuid, text) to anon, authenticated;

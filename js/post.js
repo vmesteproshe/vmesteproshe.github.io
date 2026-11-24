@@ -113,6 +113,22 @@
             "</div>" +
           "</div>" +
         "</div>" +
+        '<div class="article-vote" id="articleVote">' +
+          '<p class="article-vote__title">Статья помогла?</p>' +
+          '<div class="article-vote__actions">' +
+            '<button class="vote-btn" type="button" data-vote="yes" aria-pressed="false">' +
+              "<span>Помогло</span>" +
+              '<span class="vote-btn__count" data-vote-count="yes">' +
+                (Number(post.helpful_yes) || 0) + "</span>" +
+            "</button>" +
+            '<button class="vote-btn" type="button" data-vote="no" aria-pressed="false">' +
+              "<span>Не хватило деталей</span>" +
+              '<span class="vote-btn__count" data-vote-count="no">' +
+                (Number(post.helpful_no) || 0) + "</span>" +
+            "</button>" +
+          "</div>" +
+          '<p class="article-vote__status" id="voteStatus" role="status" aria-live="polite"></p>' +
+        "</div>" +
         '<div id="relatedSlot"></div>' +
       "</article>"
     );
@@ -133,6 +149,95 @@
       window.setTimeout(function () {
         button.textContent = original;
       }, 2200);
+    });
+  }
+
+  function voteStorageKey(id) {
+    return "vp_vote_" + id;
+  }
+
+  function readStoredVote(id) {
+    try {
+      return window.localStorage.getItem(voteStorageKey(id));
+    } catch (error) {
+      console.warn("Не удалось прочитать голос:", error);
+      return null;
+    }
+  }
+
+  function storeVote(id, vote) {
+    try {
+      window.localStorage.setItem(voteStorageKey(id), vote);
+    } catch (error) {
+      console.warn("Не удалось сохранить голос:", error);
+    }
+  }
+
+  function bindVote(post) {
+    var block = document.getElementById("articleVote");
+    if (!block || !window.VP.supabase || !post || !post.id) return;
+
+    var buttons = Array.prototype.slice.call(block.querySelectorAll("[data-vote]"));
+    var status = block.querySelector(".article-vote__status");
+    var stored = readStoredVote(post.id);
+    var chosen = stored === "yes" || stored === "no" ? stored : "";
+    var busy = false;
+
+    function setStatus(text) {
+      if (status) status.textContent = text || "";
+    }
+
+    function render() {
+      buttons.forEach(function (button) {
+        var active = button.getAttribute("data-vote") === chosen;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+        button.disabled = Boolean(chosen) || busy;
+      });
+    }
+
+    function setCounts(row) {
+      if (!row) return;
+      [["yes", "helpful_yes"], ["no", "helpful_no"]].forEach(function (pair) {
+        var element = block.querySelector('[data-vote-count="' + pair[0] + '"]');
+        var value = Number(row[pair[1]]);
+        if (element && isFinite(value)) element.textContent = String(value);
+      });
+    }
+
+    render();
+
+    block.addEventListener("click", async function (event) {
+      var button = event.target.closest("[data-vote]");
+      if (!button || button.disabled || busy || chosen) return;
+
+      var vote = button.getAttribute("data-vote");
+      if (vote !== "yes" && vote !== "no") return;
+
+      busy = true;
+      render();
+      setStatus("Отправляем оценку…");
+
+      try {
+        var response = await window.VP.supabase.rpc("vote_post", {
+          p_post_id: post.id,
+          p_vote: vote
+        });
+        if (response.error) throw response.error;
+
+        var row = Array.isArray(response.data) ? response.data[0] : response.data;
+        if (!row) throw new Error("Статья недоступна для голосования");
+        setCounts(row);
+        chosen = vote;
+        storeVote(post.id, vote);
+        setStatus("Спасибо! Оценка учтена.");
+      } catch (error) {
+        console.error("Ошибка сохранения оценки статьи:", error);
+        setStatus("Не удалось сохранить оценку. Попробуйте позже.");
+      } finally {
+        busy = false;
+        render();
+      }
     });
   }
 
@@ -220,6 +325,7 @@
     root.setAttribute("aria-busy", "false");
 
     bindShare();
+    bindVote(post);
     updateProgress();
     loadRelated(post);
   }
