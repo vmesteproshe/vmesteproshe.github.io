@@ -34,6 +34,7 @@ create table if not exists public.posts (
   author      text,
   helpful_yes int not null default 0,
   helpful_no  int not null default 0,
+  views_count int not null default 0,
   is_featured boolean not null default false,
   status      text not null default 'published' check (status in ('draft', 'published')),
   publish_at  timestamptz,
@@ -46,9 +47,13 @@ comment on column public.posts.category is 'Идентификатор рубр�
 comment on column public.posts.author is 'Автор материала (необязательно)';
 comment on column public.posts.helpful_yes is 'Количество оценок «Помогло»';
 comment on column public.posts.helpful_no is 'Количество оценок «Не хватило деталей»';
+comment on column public.posts.views_count is 'Количество просмотров опубликованной статьи (увеличивается RPC increment_post_views)';
 comment on column public.posts.is_featured is 'Главный материал на первой странице';
 comment on column public.posts.status is 'draft = черновик, published = опубликовано';
 comment on column public.posts.publish_at is 'Дата и время публикации: null — сразу, будущее значение — отложенный выход материала';
+
+-- Повторное выполнение schema.sql на существующей БД не должно терять счётчик.
+alter table public.posts add column if not exists views_count int not null default 0;
 
 -- ---------- Страницы ----------
 create table if not exists public.pages (
@@ -225,6 +230,31 @@ $$;
 
 revoke all on function public.vote_post(uuid, text) from public;
 grant execute on function public.vote_post(uuid, text) to anon, authenticated;
+
+-- ---------- Учёт просмотров статьи ----------
+-- Прямой UPDATE таблицы posts для anon не открыт: счётчик меняет только функция.
+
+create or replace function public.increment_post_views(p_post_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_views integer;
+begin
+  update public.posts
+     set views_count = views_count + 1
+   where id = p_post_id
+     and status = 'published'
+  returning views_count into new_views;
+
+  return new_views;
+end;
+$$;
+
+revoke all on function public.increment_post_views(uuid) from public;
+grant execute on function public.increment_post_views(uuid) to anon, authenticated;
 
 -- ---------- Ограничения для заявок «Предложить тему» ----------
 -- Таблица topic_suggestions создаётся в sql/migration_v2.sql, поэтому

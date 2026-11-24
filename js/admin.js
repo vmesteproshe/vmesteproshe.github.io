@@ -764,6 +764,7 @@
     var isDraft = post.status === "draft";
     var helpfulYes = Number(post.helpful_yes) || 0;
     var helpfulNo = Number(post.helpful_no) || 0;
+    var viewsCount = Number(post.views_count) || 0;
     var rating = helpfulYes + helpfulNo
       ? '<p class="admin-post__rating">Помогло: ' + helpfulYes +
         " · Не хватило деталей: " + helpfulNo + "</p>"
@@ -782,6 +783,7 @@
               ? '<span class="admin-status admin-status--scheduled">Запланировано на ' +
                 VP.escapeHtml(formatScheduleLabel(post.publish_at)) + "</span>"
               : "") +
+            '<span class="admin-views" title="Просмотры статьи">Просмотры: ' + viewsCount + "</span>" +
             (post.is_featured ? '<span class="admin-featured-badge">Главная</span>' : "") +
           "</div>" +
           '<h3 class="admin-post__title">' +

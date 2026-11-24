@@ -447,6 +447,9 @@
     normalized.status = normalized.status === "draft" ? "draft" : "published";
     normalized.cover_variant = normalizeCoverVariant(normalized.cover_variant);
     normalized.is_featured = normalized.is_featured === true;
+    // До применения миграции v8 колонки views_count нет — считаем просмотры нулём.
+    var views = Number(normalized.views_count);
+    normalized.views_count = isFinite(views) && views > 0 ? Math.floor(views) : 0;
     return normalized;
   }
 
@@ -656,9 +659,11 @@
   }
 
   var POST_FIELDS_FULL =
+    "id,title,category,excerpt,content,cover_url,cover_variant,author,status,is_featured,created_at,publish_at,views_count";
+  var POST_FIELDS_NO_VIEWS =
     "id,title,category,excerpt,content,cover_url,cover_variant,author,status,is_featured,created_at,publish_at";
   var POST_FIELDS_NO_SCHEDULE =
-    "id,title,category,excerpt,content,cover_url,cover_variant,author,status,is_featured,created_at";
+    "id,title,category,excerpt,content,cover_url,cover_variant,author,status,is_featured,created_at,views_count";
   var POST_FIELDS_LEGACY =
     "id,title,category,excerpt,content,cover_url,is_featured,created_at";
 
@@ -681,18 +686,27 @@
       return query;
     }
 
-    var response = await buildQuery(POST_FIELDS_FULL, true);
+    // Варианты на случай, если миграции v7/v8 ещё не применены в БД.
+    var attempts = [
+      { fields: POST_FIELDS_FULL, filterByStatus: true },
+      { fields: POST_FIELDS_NO_VIEWS, filterByStatus: true },
+      { fields: POST_FIELDS_NO_SCHEDULE, filterByStatus: true },
+      { fields: POST_FIELDS_LEGACY, filterByStatus: false }
+    ];
+
+    var response = null;
     var legacy = false;
 
-    // Миграция v7 ещё не применена: читаем без publish_at, но только опубликованные.
-    if (response.error && isMissingColumnError(response.error)) {
-      response = await buildQuery(POST_FIELDS_NO_SCHEDULE, true);
+    for (var index = 0; index < attempts.length; index += 1) {
+      response = await buildQuery(attempts[index].fields, attempts[index].filterByStatus);
+      if (!response.error || !isMissingColumnError(response.error)) {
+        legacy = !attempts[index].filterByStatus;
+        break;
+      }
     }
 
-    // Очень старая схема: нет и статусов — считаем все статьи опубликованными.
-    if (response.error && isMissingColumnError(response.error)) {
-      response = await buildQuery(POST_FIELDS_LEGACY, false);
-      legacy = true;
+    if (!response) {
+      return { data: [], error: null, legacy: false };
     }
 
     if (response.error) {

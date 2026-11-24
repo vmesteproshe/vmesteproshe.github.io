@@ -394,6 +394,56 @@ a.tag:hover {
   background: var(--line);
 }
 
+/* ---------- Сортировка материалов ---------- */
+
+.header-sort-row {
+  display: flex;
+  align-items: center;
+  padding-bottom: 12px;
+}
+
+.sort-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.sort-switch__label {
+  padding: 0 8px 0 6px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sort-switch__btn {
+  min-height: 24px;
+  padding: 3px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.sort-switch__btn:hover {
+  color: var(--text);
+}
+
+.sort-switch__btn.is-active {
+  background: var(--text);
+  color: #ffffff;
+}
+
 /* ---------- Главная: лид ---------- */
 
 main {
@@ -1779,6 +1829,14 @@ main {
   font-size: 8px;
   font-weight: 600;
   letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-views {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 

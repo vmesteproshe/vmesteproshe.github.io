@@ -17,6 +17,7 @@
   var state = {
     posts: [],
     filter: "all",
+    sort: "new",
     postId: null,
     query: "",
     loaded: false,
@@ -48,6 +49,10 @@
     return categoryExists(category) ? category : "all";
   }
 
+  function sortFromLocation() {
+    return new URLSearchParams(location.search).get("sort") === "popular" ? "popular" : "new";
+  }
+
   function postIdFromLocation() {
     var id = new URLSearchParams(location.search).get("post");
     return id ? String(id) : null;
@@ -58,6 +63,7 @@
     var params = new URLSearchParams();
 
     if (options.filter && options.filter !== "all") params.set("cat", options.filter);
+    if (options.sort === "popular") params.set("sort", "popular");
     if (options.postId) params.set("post", options.postId);
 
     var query = params.toString();
@@ -67,13 +73,14 @@
   function historySnapshot() {
     return {
       filter: state.filter,
+      sort: state.sort,
       postId: state.postId,
       query: state.query
     };
   }
 
   function writeHistory(replace) {
-    var url = urlFor({ filter: state.filter, postId: state.postId });
+    var url = urlFor({ filter: state.filter, sort: state.sort, postId: state.postId });
     try {
       if (replace) {
         history.replaceState(historySnapshot(), "", url);
@@ -91,10 +98,15 @@
     if (next.filter !== undefined) {
       state.filter = next.filter === "all" || categoryExists(next.filter) ? next.filter : "all";
     }
+    if (next.sort !== undefined) {
+      state.sort = next.sort === "popular" ? "popular" : "new";
+      state.posts = sortPosts(state.posts);
+    }
     if (next.postId !== undefined) state.postId = next.postId || null;
     if (next.query !== undefined) state.query = String(next.query || "").trim();
 
     syncSearchUi();
+    syncSortUi();
     writeHistory(Boolean(replace));
     render({ scroll: true });
   }
@@ -103,6 +115,32 @@
     if (searchInput && searchInput.value !== state.query) searchInput.value = state.query;
     if (searchClear) searchClear.hidden = !state.query;
     if (!state.query && searchHint) searchHint.textContent = "";
+  }
+
+  function syncSortUi() {
+    document.querySelectorAll(".sort-switch [data-sort]").forEach(function (button) {
+      var active = button.getAttribute("data-sort") === state.sort;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  function postTime(post) {
+    var time = new Date(post && post.created_at).getTime();
+    return isFinite(time) ? time : 0;
+  }
+
+  function sortPosts(list) {
+    var items = Array.prototype.slice.call(list || []);
+    items.sort(function (a, b) {
+      if (state.sort === "popular") {
+        var viewsA = Number(a.views_count) || 0;
+        var viewsB = Number(b.views_count) || 0;
+        if (viewsA !== viewsB) return viewsB - viewsA;
+      }
+      return postTime(b) - postTime(a);
+    });
+    return items;
   }
 
   /* ---------- Мета страницы ---------- */
@@ -484,9 +522,11 @@
     resetMeta();
     window.VP.setActiveCategory("all");
 
-    var lead = state.posts.find(function (post) {
-      return post.is_featured === true;
-    }) || state.posts[0];
+    var lead = state.sort === "popular"
+      ? state.posts[0]
+      : state.posts.find(function (post) {
+          return post.is_featured === true;
+        }) || state.posts[0];
     var rest = state.posts.filter(function (post) {
       return post.id !== lead.id;
     });
@@ -587,7 +627,7 @@
       return;
     }
 
-    state.posts = result.data;
+    state.posts = sortPosts(result.data);
     state.legacy = result.legacy;
     if (result.legacy) {
       console.info("Статьи загружены по старой схеме: выполните sql/migration_v2.sql, чтобы включить статусы и стили обложек.");
@@ -602,6 +642,13 @@
     link.addEventListener("click", function (event) {
       event.preventDefault();
       navigate({ filter: link.getAttribute("data-category"), postId: null, query: "" }, false);
+    });
+  });
+
+  document.querySelectorAll(".sort-switch [data-sort]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      if (button.getAttribute("data-sort") === state.sort) return;
+      navigate({ sort: button.getAttribute("data-sort") }, true);
     });
   });
 
@@ -692,15 +739,19 @@
 
     if (saved && typeof saved === "object" && ("filter" in saved || "postId" in saved)) {
       state.filter = saved.filter === "all" || categoryExists(saved.filter) ? saved.filter : "all";
+      state.sort = saved.sort === "popular" ? "popular" : "new";
       state.postId = saved.postId || null;
       state.query = String(saved.query || "");
     } else {
       state.filter = filterFromLocation();
+      state.sort = sortFromLocation();
       state.postId = postIdFromLocation();
       state.query = "";
     }
+    state.posts = sortPosts(state.posts);
 
     syncSearchUi();
+    syncSortUi();
     render({ scroll: true });
   });
 
@@ -715,12 +766,18 @@
   /* ---------- Запуск ---------- */
 
   state.filter = filterFromLocation();
+  state.sort = sortFromLocation();
   state.postId = postIdFromLocation();
   state.query = "";
   syncSearchUi();
+  syncSortUi();
 
   try {
-    history.replaceState(historySnapshot(), "", urlFor({ filter: state.filter, postId: state.postId }));
+    history.replaceState(
+      historySnapshot(),
+      "",
+      urlFor({ filter: state.filter, sort: state.sort, postId: state.postId })
+    );
   } catch (error) {
     console.warn("Не удалось нормализовать адрес страницы:", error);
   }
