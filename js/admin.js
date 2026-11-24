@@ -1394,6 +1394,11 @@
     var payload = postPayload();
     if (!payload) return;
 
+    var previousPost = state.editingId
+      ? state.posts.find(function (post) { return post.id === state.editingId; })
+      : null;
+    var previousCoverUrl = previousPost ? previousPost.cover_url || "" : "";
+
     setSaving(true);
     els.editorSaveStatus.textContent = "Идёт сохранение…";
 
@@ -1427,6 +1432,11 @@
       if (response.error) throw response.error;
 
       var savedId = response.data ? response.data.id : state.editingId;
+
+      // Обложку заменили или убрали — старый файл в бакете больше не нужен.
+      if (previousCoverUrl && previousCoverUrl !== payload.cover_url) {
+        deleteMediaFile(previousCoverUrl);
+      }
 
       if (payload.status === "published" && payload.is_featured && savedId) {
         var clearOthers = await supabase
@@ -1513,6 +1523,8 @@
     try {
       var response = await supabase.from("posts").delete().eq("id", post.id);
       if (response.error) throw response.error;
+
+      deleteMediaFile(post.cover_url);
 
       if (state.editingId === post.id) {
         state.editingId = null;
@@ -1845,10 +1857,22 @@
 
   /* ---------- Загрузка изображений ---------- */
 
+  var IMAGE_MAX_WIDTH = 1400;
+  var IMAGE_QUALITY = 0.82;
+  var IMAGE_PASSTHROUGH_TYPES = ["image/svg+xml", "image/gif"];
+  var MIME_EXTENSIONS = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/avif": "avif",
+    "image/gif": "gif",
+    "image/svg+xml": "svg"
+  };
+
   function validateImage(file, statusElement) {
-    var allowed = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
+    var allowed = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif", "image/svg+xml"];
     if (!file.type || allowed.indexOf(file.type) === -1) {
-      setStatus(statusElement, "Поддерживаются JPG, PNG, WebP, AVIF и GIF.", true);
+      setStatus(statusElement, "Поддерживаются JPG, PNG, WebP, AVIF, GIF и SVG.", true);
       return false;
     }
     if (file.size > 8 * 1024 * 1024) {
@@ -1859,30 +1883,67 @@
     return true;
   }
 
+  function imageExtension(contentType) {
+    return MIME_EXTENSIONS[contentType] || "bin";
+  }
+
+  // Готовит файл к загрузке: SVG и GIF не трогаем, остальное сжимаем через Canvas.
   function compressImage(file) {
-    var MAX_W = 1400;
-    var QUALITY = 0.82;
+    if (IMAGE_PASSTHROUGH_TYPES.indexOf(file.type) !== -1) {
+      return Promise.resolve({ blob: file, contentType: file.type });
+    }
+
     return new Promise(function (resolve, reject) {
       var reader = new FileReader();
-      reader.onload = function (e) {
+      reader.onload = function (event) {
         var img = new Image();
         img.onload = function () {
-          var w = img.naturalWidth;
-          var h = img.naturalHeight;
-          if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
-          var canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          var ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          canvas.toBlob(function (blob) {
-            if (!blob) { reject(new Error('Не удалось сжать изображение')); return; }
-            resolve(blob);
-          }, 'image/webp', QUALITY);
+          var width = img.naturalWidth || img.width;
+          var height = img.naturalHeight || img.height;
+          if (!width || !height) {
+            reject(new Error("Не удалось определить размер изображения."));
+            return;
+          }
+
+          // Меньшие картинки не увеличиваем.
+          if (width > IMAGE_MAX_WIDTH) {
+            height = Math.max(1, Math.round(height * IMAGE_MAX_WIDTH / width));
+            width = IMAGE_MAX_WIDTH;
+          }
+
+          var canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          var context = canvas.getContext("2d");
+          if (!context) {
+            reject(new Error("Canvas не доступен в этом браузере."));
+            return;
+          }
+          context.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(function (webpBlob) {
+            if (webpBlob && webpBlob.type === "image/webp") {
+              resolve({ blob: webpBlob, contentType: "image/webp" });
+              return;
+            }
+
+            // Браузер не вернул WebP — сохраняем в JPEG.
+            context.fillStyle = "#ffffff";
+            context.fillRect(0, 0, width, height);
+            context.drawImage(img, 0, 0, width, height);
+            canvas.toBlob(function (jpegBlob) {
+              if (!jpegBlob) {
+                reject(new Error("Не удалось сжать изображение."));
+                return;
+              }
+              resolve({ blob: jpegBlob, contentType: jpegBlob.type || "image/jpeg" });
+            }, "image/jpeg", IMAGE_QUALITY);
+          }, "image/webp", IMAGE_QUALITY);
         };
-        img.onerror = function () { reject(new Error('Не удалось загрузить изображение')); };
-        img.src = e.target.result;
+        img.onerror = function () { reject(new Error("Не удалось загрузить изображение.")); };
+        img.src = event.target.result;
       };
-      reader.onerror = function () { reject(new Error('Не удалось прочитать файл')); };
+      reader.onerror = function () { reject(new Error("Не удалось прочитать файл.")); };
       reader.readAsDataURL(file);
     });
   }
@@ -1890,12 +1951,12 @@
   async function uploadImage(file, folder) {
     if (!supabase) throw new Error("Supabase не подключён.");
     var bucket = VP.config.MEDIA_BUCKET;
-    var blob = await compressImage(file);
-    var path = folder + "/" + Date.now() + "-" + randomId() + ".webp";
+    var prepared = await compressImage(file);
+    var path = folder + "/" + Date.now() + "-" + randomId() + "." + imageExtension(prepared.contentType);
 
-    var response = await supabase.storage.from(bucket).upload(path, blob, {
+    var response = await supabase.storage.from(bucket).upload(path, prepared.blob, {
       cacheControl: "31536000",
-      contentType: "image/webp",
+      contentType: prepared.contentType,
       upsert: false
     });
 
@@ -1906,6 +1967,59 @@
       throw new Error("Не удалось получить публичную ссылку на файл.");
     }
     return publicUrl.data.publicUrl;
+  }
+
+  // Возвращает путь в бакете media только для ссылок нашего проекта.
+  function mediaPathFromUrl(url) {
+    if (!url || typeof url !== "string") return null;
+
+    var parsed;
+    var project;
+    try {
+      parsed = new URL(url);
+      project = new URL(VP.config.SUPABASE_URL);
+    } catch (error) {
+      return null;
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    if (parsed.host !== project.host) return null;
+
+    var bucket = VP.config.MEDIA_BUCKET;
+    var marker = "/storage/v1/object/public/";
+    var index = parsed.pathname.indexOf(marker);
+    if (index === -1) return null;
+
+    var tail = parsed.pathname.slice(index + marker.length);
+    if (tail.indexOf(bucket + "/") !== 0) return null;
+    var path = tail.slice(bucket.length + 1);
+    if (!path || /\/+$/.test(path) || path.indexOf("..") !== -1) return null;
+
+    try {
+      return decodeURIComponent(path);
+    } catch (error) {
+      return path;
+    }
+  }
+
+  var scheduledMediaDeletes = Object.create(null);
+
+  // Не блокирует сохранение/удаление статьи: ошибки только пишем в консоль.
+  function deleteMediaFile(url) {
+    if (!supabase) return;
+    var path = mediaPathFromUrl(url);
+    if (!path || scheduledMediaDeletes[path]) return;
+    scheduledMediaDeletes[path] = true;
+
+    Promise.resolve()
+      .then(function () {
+        return supabase.storage.from(VP.config.MEDIA_BUCKET).remove([path]);
+      })
+      .then(function (response) {
+        if (response && response.error) throw response.error;
+      })
+      .catch(function (error) {
+        console.error("Не удалось удалить файл из бакета media:", error);
+      });
   }
 
   els.coverChooseBtn.addEventListener("click", function () {
