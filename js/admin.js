@@ -23,6 +23,7 @@
     adminSession: $("adminSession"),
     adminEmail: $("adminEmail"),
     logoutBtn: $("logoutBtn"),
+    backupBtn: $("backupBtn"),
     adminLoading: $("adminLoading"),
     adminWorkspace: $("adminWorkspace"),
     adminTabs: $("adminTabs"),
@@ -135,7 +136,8 @@
     editorStatus: "published",
     draftKey: null,
     lastLocalJson: "",
-    localSavedAt: null
+    localSavedAt: null,
+    backupLoading: false
   };
 
   var confirmResolve = null;
@@ -575,6 +577,62 @@
       els.logoutBtn.disabled = false;
     }
   });
+
+  /* ---------- Бэкап базы ---------- */
+
+  async function downloadBackup() {
+    if (!supabase || state.backupLoading || !els.backupBtn) return;
+
+    state.backupLoading = true;
+    var originalText = els.backupBtn.textContent;
+    els.backupBtn.disabled = true;
+    els.backupBtn.textContent = "Готовим бэкап…";
+
+    var tables = ["posts", "categories", "pages", "topic_suggestions"];
+
+    try {
+      var now = new Date();
+      var date = now.getFullYear() + "-" +
+        String(now.getMonth() + 1).padStart(2, "0") + "-" +
+        String(now.getDate()).padStart(2, "0");
+
+      var backup = {
+        project: "Вместе проще",
+        exported_at: now.toISOString(),
+        tables: {}
+      };
+
+      for (var index = 0; index < tables.length; index += 1) {
+        var table = tables[index];
+        var response = await supabase.from(table).select("*");
+        if (response.error) throw response.error;
+        backup.tables[table] = Array.isArray(response.data) ? response.data : [];
+      }
+
+      var blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = "vmesteproshe-backup-" + date + ".json";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 1000);
+
+      toast("Бэкап скачан.");
+    } catch (error) {
+      console.error("Ошибка выгрузки бэкапа:", error);
+      toast(apiErrorMessage(error), true);
+    } finally {
+      state.backupLoading = false;
+      els.backupBtn.disabled = false;
+      els.backupBtn.textContent = originalText;
+    }
+  }
+
+  if (els.backupBtn) els.backupBtn.addEventListener("click", downloadBackup);
 
   /* ---------- Оболочка панели ---------- */
 

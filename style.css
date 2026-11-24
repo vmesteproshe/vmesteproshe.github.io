@@ -2533,6 +2533,17 @@ mark {
   background: var(--bg);
 }
 
+/* Ловушка для ботов: поле есть в форме, но не видно и не доступно с клавиатуры. */
+.suggest__honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .field-optional {
   color: var(--muted);
   font-size: 9px;

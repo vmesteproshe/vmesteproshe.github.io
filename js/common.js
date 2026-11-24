@@ -749,12 +749,13 @@
             "</div>" +
             '<div class="field field--wide">' +
               '<label for="suggestTopic">Вопрос или тема</label>' +
-              '<textarea class="field-input field-textarea" id="suggestTopic" name="topic" rows="3" maxlength="1000" required placeholder="Например: как делить расходы, если доходы разные?"></textarea>' +
+              '<textarea class="field-input field-textarea" id="suggestTopic" name="topic" rows="3" maxlength="500" required placeholder="Например: как делить расходы, если доходы разные?"></textarea>' +
             "</div>" +
             '<div class="field field--wide">' +
               '<label for="suggestContact">Контакт для ответа <span class="field-optional">необязательно</span></label>' +
-              '<input class="field-input" id="suggestContact" name="contact" type="text" maxlength="200" autocomplete="email" placeholder="Почта или телеграм">' +
+              '<input class="field-input" id="suggestContact" name="contact" type="text" maxlength="120" autocomplete="email" placeholder="Почта или телеграм">' +
             "</div>" +
+            '<input class="suggest__honeypot" id="suggestWebsite" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">' +
             '<p class="form-error" id="suggestError" role="alert" hidden></p>' +
             '<div class="suggest__actions">' +
               '<button class="btn" id="suggestSubmit" type="submit">Отправить тему</button>' +
@@ -778,9 +779,31 @@
     var categoryInput = document.getElementById("suggestCategory");
     var topicInput = document.getElementById("suggestTopic");
     var contactInput = document.getElementById("suggestContact");
+    var honeypotInput = document.getElementById("suggestWebsite");
     var errorElement = document.getElementById("suggestError");
     var statusElement = document.getElementById("suggestStatus");
     var submitButton = document.getElementById("suggestSubmit");
+
+    var SUGGEST_RATE_KEY = "vp_suggest_last_sent";
+    var SUGGEST_RATE_MS = 30000;
+
+    function lastSuggestTime() {
+      try {
+        var raw = window.localStorage.getItem(SUGGEST_RATE_KEY);
+        var value = Number(raw);
+        return raw && isFinite(value) ? value : 0;
+      } catch (error) {
+        return 0;
+      }
+    }
+
+    function rememberSuggestTime() {
+      try {
+        window.localStorage.setItem(SUGGEST_RATE_KEY, String(Date.now()));
+      } catch (error) {
+        // Приватный режим может запрещать localStorage — просто не ограничиваем частоту.
+      }
+    }
 
     function showError(message) {
       if (!errorElement) return;
@@ -801,18 +824,37 @@
       showError("");
       showStatus("");
 
+      // Скрытое поле для ботов: если заполнено — успех без запроса в Supabase.
+      if (honeypotInput && String(honeypotInput.value || "").trim()) {
+        form.reset();
+        showStatus("Спасибо! Тема отправлена редакции.");
+        if (submitButton) submitButton.textContent = "Отправить ещё";
+        return;
+      }
+
       var topic = topicInput ? topicInput.value.trim() : "";
       var contact = contactInput ? contactInput.value.trim() : "";
       var category = categoryInput ? categoryInput.value : "";
 
-      if (topic.length < 3) {
-        showError("Напишите вопрос или тему — хотя бы несколько слов.");
+      if (topic.length < 5) {
+        showError("Напишите вопрос или тему — не короче 5 символов.");
         if (topicInput) topicInput.focus();
         return;
       }
 
       if (!client) {
         showError("Форма временно недоступна: сайт не подключён к базе данных.");
+        return;
+      }
+
+      var lastSent = lastSuggestTime();
+      var remaining = SUGGEST_RATE_MS - (Date.now() - lastSent);
+      if (lastSent && remaining > 0) {
+        var seconds = Math.ceil(remaining / 1000);
+        showError(
+          "Слишком часто. Попробуйте отправить тему через " +
+            seconds + " " + plural(seconds, ["секунду", "секунды", "секунд"]) + "."
+        );
         return;
       }
 
@@ -831,6 +873,7 @@
 
         if (response.error) throw response.error;
 
+        rememberSuggestTime();
         form.reset();
         showStatus("Спасибо! Тема отправлена редакции.");
         if (submitButton) submitButton.textContent = "Отправить ещё";

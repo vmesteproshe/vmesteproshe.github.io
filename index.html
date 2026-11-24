@@ -154,12 +154,13 @@
           </div>
           <div class="field field--wide">
             <label for="suggestTopic">Вопрос или тема</label>
-            <textarea class="field-input field-textarea" id="suggestTopic" name="topic" rows="3" maxlength="1000" required placeholder="Например: как делить расходы, если доходы разные?"></textarea>
+            <textarea class="field-input field-textarea" id="suggestTopic" name="topic" rows="3" maxlength="500" required placeholder="Например: как делить расходы, если доходы разные?"></textarea>
           </div>
           <div class="field field--wide">
             <label for="suggestContact">Контакт для ответа <span class="field-optional">необязательно</span></label>
-            <input class="field-input" id="suggestContact" name="contact" type="text" maxlength="200" autocomplete="email" placeholder="Почта или телеграм">
+            <input class="field-input" id="suggestContact" name="contact" type="text" maxlength="120" autocomplete="email" placeholder="Почта или телеграм">
           </div>
+          <input class="suggest__honeypot" id="suggestWebsite" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
           <p class="form-error" id="suggestError" role="alert" hidden></p>
           <div class="suggest__actions">
             <button class="btn" id="suggestSubmit" type="submit">Отправить тему</button>

@@ -223,3 +223,35 @@ $$;
 
 revoke all on function public.vote_post(uuid, text) from public;
 grant execute on function public.vote_post(uuid, text) to anon, authenticated;
+
+-- ---------- Ограничения для заявок «Предложить тему» ----------
+-- Таблица topic_suggestions создаётся в sql/migration_v2.sql, поэтому
+-- ограничения накладываются только если таблица уже присутствует в БД
+-- (например, при повторном выполнении schema.sql после миграций).
+
+do $$
+begin
+  if to_regclass('public.topic_suggestions') is not null then
+    if not exists (
+      select 1
+      from pg_constraint
+      where conrelid = 'public.topic_suggestions'::regclass
+        and conname = 'topic_suggestions_topic_length_check'
+    ) then
+      alter table public.topic_suggestions
+        add constraint topic_suggestions_topic_length_check
+        check (char_length(btrim(topic)) between 5 and 500);
+    end if;
+
+    if not exists (
+      select 1
+      from pg_constraint
+      where conrelid = 'public.topic_suggestions'::regclass
+        and conname = 'topic_suggestions_contact_length_check'
+    ) then
+      alter table public.topic_suggestions
+        add constraint topic_suggestions_contact_length_check
+        check (char_length(contact) <= 120);
+    end if;
+  end if;
+end $$;
