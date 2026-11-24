@@ -43,9 +43,255 @@
     { id: "relationships", label: "Отношения", description: "Про разговоры, границы и внимание друг к другу." }
   ];
 
+  // Рабочий список рубрик: начинаем с fallback, затем подменяем данными из БД.
+  var categories = CATEGORIES.map(function (category) {
+    return Object.assign({}, category);
+  });
   var CATEGORY_MAP = {};
-  CATEGORIES.forEach(function (category) {
-    CATEGORY_MAP[category.id] = category;
+  var CATEGORY_CACHE_KEY = "vp_categories_cache";
+  var categoriesLoaded = false;
+  var categoriesRequest = null;
+
+  function rebuildCategoryMap() {
+    CATEGORY_MAP = {};
+    categories.forEach(function (category) {
+      CATEGORY_MAP[category.id] = category;
+    });
+  }
+
+  rebuildCategoryMap();
+
+  function categoryLabelFromId(id) {
+    var known = CATEGORIES.find(function (category) {
+      return category.id === id;
+    });
+    if (known) return known.label;
+    return String(id || "")
+      .split("-")
+      .filter(Boolean)
+      .map(function (part) {
+        return part.charAt(0).toUpperCase() + part.slice(1);
+      })
+      .join(" ") || "Материалы";
+  }
+
+  function categoryDescription(label, id) {
+    var known = CATEGORIES.find(function (category) {
+      return category.id === id || category.label.toLowerCase() === String(label || "").toLowerCase();
+    });
+    return known ? known.description : "Материалы рубрики «" + label + "».";
+  }
+
+  function categorySlug(name, dbId) {
+    var value = String(name || "").trim();
+    var known = CATEGORIES.find(function (category) {
+      return category.label.toLowerCase() === value.toLowerCase();
+    });
+    if (known) return known.id;
+    return slugifyHeading(value) || "rubric-" + dbId;
+  }
+
+  function applyCategoryRows(rows, persist) {
+    if (!Array.isArray(rows) || !rows.length) return false;
+
+    var sorted = rows.slice().sort(function (a, b) {
+      var orderA = Number(a.sort_order) || 0;
+      var orderB = Number(b.sort_order) || 0;
+      if (orderA !== orderB) return orderA - orderB;
+      return String(a.name || "").localeCompare(String(b.name || ""), "ru");
+    });
+
+    var used = {};
+    var mapped = [];
+
+    sorted.forEach(function (row) {
+      var name = String(row.name || "").trim();
+      if (!name) return;
+
+      var id = categorySlug(name, row.id);
+      if (used[id]) id = id + "-" + row.id;
+      used[id] = true;
+
+      mapped.push({
+        id: id,
+        label: name,
+        description: categoryDescription(name, id),
+        dbId: row.id,
+        sortOrder: Number(row.sort_order) || 0
+      });
+    });
+
+    if (!mapped.length) return false;
+
+    categories.splice.apply(categories, [0, categories.length].concat(mapped));
+    rebuildCategoryMap();
+
+    if (persist) {
+      try {
+        window.localStorage.setItem(CATEGORY_CACHE_KEY, JSON.stringify(mapped));
+      } catch (error) {
+        console.warn("Не удалось кэшировать рубрики:", error);
+      }
+    }
+
+    document.dispatchEvent(new CustomEvent("vp:categories", { detail: categories.slice() }));
+    return true;
+  }
+
+  function readCachedCategories() {
+    try {
+      var raw = window.localStorage.getItem(CATEGORY_CACHE_KEY);
+      var parsed = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(parsed)) return false;
+
+      var cached = parsed.filter(function (item) {
+        return item && typeof item.id === "string" && typeof item.label === "string";
+      }).map(function (item) {
+        return {
+          id: item.id,
+          label: item.label,
+          description: item.description || categoryDescription(item.label, item.id),
+          dbId: item.dbId || null,
+          sortOrder: Number(item.sortOrder) || 0
+        };
+      });
+
+      if (!cached.length) return false;
+      categories.splice.apply(categories, [0, categories.length].concat(cached));
+      rebuildCategoryMap();
+      return true;
+    } catch (error) {
+      console.warn("Не удалось прочитать кэш рубрик:", error);
+      return false;
+    }
+  }
+
+  function seedCategoryFromLocation() {
+    var id = "";
+    try {
+      id = new URLSearchParams(location.search).get("cat") || "";
+    } catch (error) {
+      id = "";
+    }
+    if (!id) {
+      var hash = String(location.hash || "").replace(/^#/, "");
+      if (hash && hash !== "all" && hash !== "top") id = hash;
+    }
+    if (!id || id === "all" || CATEGORY_MAP[id]) return;
+
+    var label = categoryLabelFromId(id);
+    categories.push({
+      id: id,
+      label: label,
+      description: categoryDescription(label, id),
+      dbId: null,
+      sortOrder: 0,
+      stub: true
+    });
+    rebuildCategoryMap();
+  }
+
+  async function fetchCategories(options) {
+    options = options || {};
+
+    if (!client) {
+      return { data: categories.slice(), error: null, fallback: true };
+    }
+    if (categoriesRequest && !options.force) return categoriesRequest;
+
+    var request = (async function () {
+      var response = await client
+        .from("categories")
+        .select("id,name,sort_order")
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+
+      if (response.error) {
+        categoriesLoaded = false;
+        return { data: categories.slice(), error: response.error, fallback: true };
+      }
+
+      var applied = applyCategoryRows(response.data, true);
+      categoriesLoaded = applied;
+      return { data: categories.slice(), error: null, fallback: !applied };
+    })().catch(function (error) {
+      categoriesLoaded = false;
+      return { data: categories.slice(), error: error, fallback: true };
+    });
+
+    categoriesRequest = request;
+    try {
+      return await request;
+    } finally {
+      if (categoriesRequest === request) categoriesRequest = null;
+    }
+  }
+
+  function syncSuggestCategories() {
+    var select = document.getElementById("suggestCategory");
+    if (!select) return;
+
+    var previous = select.value;
+    var options = ['<option value="">Без рубрики</option>'].concat(categories.map(function (category) {
+      return '<option value="' + escapeHtml(category.id) + '">' + escapeHtml(category.label) + "</option>";
+    }));
+
+    select.innerHTML = options.join("");
+    if (categories.some(function (category) { return category.id === previous; })) {
+      select.value = previous;
+    }
+  }
+
+  function syncCategoryNav() {
+    document.querySelectorAll(".rubrics").forEach(function (nav) {
+      var allLink = nav.querySelector('a[data-category="all"]');
+      var aboutLink = nav.querySelector(".rubrics__about");
+      var managed = Array.prototype.slice.call(nav.querySelectorAll("a[data-vp-category-link]"));
+
+      categories.forEach(function (category, index) {
+        var link = managed[index];
+        if (!link) {
+          link = document.createElement("a");
+          link.setAttribute("data-vp-new", "true");
+          nav.insertBefore(link, aboutLink || null);
+        }
+
+        link.textContent = category.label;
+        link.setAttribute("href", categoryUrl(category.id));
+        link.setAttribute("data-category", category.id);
+        link.setAttribute("data-vp-category-link", "true");
+      });
+
+      managed.slice(categories.length).forEach(function (link) {
+        if (link !== allLink && link !== aboutLink) link.remove();
+      });
+    });
+
+    document.querySelectorAll('.footer-nav[aria-label="Рубрики в подвале"]').forEach(function (nav) {
+      nav.innerHTML = categories.map(function (category) {
+        return '<a href="' + escapeHtml(categoryUrl(category.id)) +
+          '" data-category="' + escapeHtml(category.id) + '">' +
+          escapeHtml(category.label) + "</a>";
+      }).join("");
+    });
+  }
+
+  function bindCategoryNavClicks() {
+    document.querySelectorAll(".rubrics").forEach(function (nav) {
+      if (nav.getAttribute("data-vp-nav-bound")) return;
+      nav.setAttribute("data-vp-nav-bound", "true");
+      nav.addEventListener("click", function (event) {
+        var link = event.target.closest("a[data-vp-new]");
+        if (!link) return;
+        event.preventDefault();
+        window.location.href = categoryUrl(link.getAttribute("data-category"));
+      });
+    });
+  }
+
+  document.addEventListener("vp:categories", function () {
+    syncSuggestCategories();
+    syncCategoryNav();
   });
 
   var COVER_VARIANTS = [
@@ -416,7 +662,7 @@
   }
 
   function suggestFormMarkup() {
-    var options = CATEGORIES.map(function (category) {
+    var options = categories.map(function (category) {
       return '<option value="' + escapeHtml(category.id) + '">' + escapeHtml(category.label) + "</option>";
     }).join("");
 
@@ -593,14 +839,22 @@
     });
   }
 
+  readCachedCategories();
+  seedCategoryFromLocation();
+  bindCategoryNavClicks();
+  syncCategoryNav();
   initChrome();
   initTopicSuggestForm();
+  syncSuggestCategories();
+
+  if (client) fetchCategories();
 
   window.VP = {
     config: config,
     isConfigured: isConfigured,
     supabase: client,
-    categories: CATEGORIES,
+    categories: categories,
+    fetchCategories: fetchCategories,
     coverVariants: COVER_VARIANTS,
     getCategory: getCategory,
     escapeHtml: escapeHtml,

@@ -5,11 +5,29 @@
 
 create extension if not exists pgcrypto;
 
+-- ---------- Рубрики ----------
+create table if not exists public.categories (
+  id         serial primary key,
+  name       text unique not null,
+  sort_order int default 0
+);
+
+insert into public.categories (name, sort_order) values
+  ('Деньги', 1),
+  ('Быт', 2),
+  ('Документы', 3),
+  ('Отношения', 4)
+on conflict (name) do nothing;
+
+comment on table public.categories is 'Справочник рубрик, которыми управляет редакция';
+comment on column public.categories.name is 'Название рубрики, показываемое на сайте';
+comment on column public.categories.sort_order is 'Порядок рубрик в фильтрах и формах';
+
 -- ---------- Статьи ----------
 create table if not exists public.posts (
   id          uuid primary key default gen_random_uuid(),
   title       text not null check (char_length(title) between 1 and 200),
-  category    text not null check (category in ('money', 'home', 'docs', 'relationships')),
+  category    text not null,
   excerpt     text not null default '',
   content     text not null default '',
   cover_url   text,
@@ -21,7 +39,7 @@ create table if not exists public.posts (
 );
 
 comment on table public.posts is 'Статьи гида «Вместе проще»';
-comment on column public.posts.category is 'money = Деньги, home = Быт, docs = Документы, relationships = Отношения';
+comment on column public.posts.category is 'Идентификатор рубрики из public.categories (для базовых рубрик: money, home, docs, relationships)';
 comment on column public.posts.author is 'Автор материала (необязательно)';
 comment on column public.posts.is_featured is 'Главный материал на первой странице';
 comment on column public.posts.status is 'draft = черновик, published = опубликовано';
@@ -65,13 +83,15 @@ create trigger pages_set_updated_at
 -- ---------- Права на уровне таблиц ----------
 grant usage on schema public to anon, authenticated;
 
-grant select on public.posts, public.pages to anon, authenticated;
+grant select on public.posts, public.pages, public.categories to anon, authenticated;
 grant insert, update, delete on public.posts to authenticated;
 grant insert, update, delete on public.pages to authenticated;
+grant insert, update, delete on public.categories to authenticated;
 
 -- ---------- RLS ----------
 alter table public.posts enable row level security;
 alter table public.pages enable row level security;
+alter table public.categories enable row level security;
 
 -- Чтение открыто всем (анонимы — только опубликованные, authenticated — все)
 drop policy if exists "posts_public_read" on public.posts;
@@ -139,6 +159,36 @@ create policy "pages_authenticated_update"
 drop policy if exists "pages_authenticated_delete" on public.pages;
 create policy "pages_authenticated_delete"
   on public.pages
+  for delete
+  to authenticated
+  using (true);
+
+-- Рубрики: читают все, меняют только авторизованные редакторы
+drop policy if exists "categories_public_read" on public.categories;
+create policy "categories_public_read"
+  on public.categories
+  for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "categories_authenticated_insert" on public.categories;
+create policy "categories_authenticated_insert"
+  on public.categories
+  for insert
+  to authenticated
+  with check (true);
+
+drop policy if exists "categories_authenticated_update" on public.categories;
+create policy "categories_authenticated_update"
+  on public.categories
+  for update
+  to authenticated
+  using (true)
+  with check (true);
+
+drop policy if exists "categories_authenticated_delete" on public.categories;
+create policy "categories_authenticated_delete"
+  on public.categories
   for delete
   to authenticated
   using (true);

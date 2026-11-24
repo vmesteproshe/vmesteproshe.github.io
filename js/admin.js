@@ -28,9 +28,11 @@
     adminTabs: $("adminTabs"),
     tabPosts: $("tabPosts"),
     tabSuggestions: $("tabSuggestions"),
+    tabCategories: $("tabCategories"),
     tabAbout: $("tabAbout"),
     postsPanel: $("postsPanel"),
     suggestionsPanel: $("suggestionsPanel"),
+    categoriesPanel: $("categoriesPanel"),
     editorPanel: $("editorPanel"),
     aboutPanel: $("aboutPanel"),
     postsCount: $("postsCount"),
@@ -40,6 +42,14 @@
     suggestionsCount: $("suggestionsCount"),
     suggestionsList: $("suggestionsList"),
     reloadSuggestionsBtn: $("reloadSuggestionsBtn"),
+    categoriesCount: $("categoriesCount"),
+    categoriesList: $("categoriesList"),
+    categoryForm: $("categoryForm"),
+    categoryNameInput: $("categoryNameInput"),
+    categoryFormStatus: $("categoryFormStatus"),
+    categoryAddBtn: $("categoryAddBtn"),
+    reloadCategoriesBtn: $("reloadCategoriesBtn"),
+    manageCategoriesBtn: $("manageCategoriesBtn"),
     editorTitle: $("editorTitle"),
     editorSaveStatus: $("editorSaveStatus"),
     editorDraftStatus: $("editorDraftStatus"),
@@ -57,6 +67,15 @@
     postContent: $("postContent"),
     postAuthor: $("postAuthor"),
     editorToolbar: $("editorToolbar"),
+    contentField: $("contentField"),
+    contentModeEditor: $("contentModeEditor"),
+    contentModePreview: $("contentModePreview"),
+    contentPreview: $("contentPreview"),
+    linkForm: $("linkForm"),
+    linkText: $("linkText"),
+    linkUrl: $("linkUrl"),
+    linkInsertBtn: $("linkInsertBtn"),
+    linkCancelBtn: $("linkCancelBtn"),
     postPreviewWrap: $("postPreviewWrap"),
     postPreview: $("postPreview"),
     previewToggleBtn: $("previewToggleBtn"),
@@ -102,6 +121,11 @@
     suggestions: [],
     suggestionsLoaded: false,
     suggestionsLoading: false,
+    categoriesLoaded: false,
+    categoriesLoading: false,
+    contentMode: "editor",
+    linkSelection: null,
+    imageSelection: null,
     editorStatus: "published",
     draftKey: null,
     lastLocalJson: "",
@@ -303,10 +327,13 @@
     els.postExcerpt.value = typeof draft.excerpt === "string" ? draft.excerpt : "";
     els.postContent.value = typeof draft.content === "string" ? draft.content : "";
 
-    var categoryExists = VP.categories.some(function (item) {
-      return item.id === draft.category;
+    refreshCategoryOptions();
+    var categoryExists = Array.prototype.some.call(els.postCategory.options, function (option) {
+      return option.value === draft.category;
     });
-    els.postCategory.value = categoryExists ? draft.category : "money";
+    els.postCategory.value = categoryExists
+      ? draft.category
+      : (els.postCategory.options[0] ? els.postCategory.options[0].value : "money");
 
     if (els.postAuthor) {
       els.postAuthor.value = typeof draft.author === "string" ? draft.author : "";
@@ -539,7 +566,7 @@
   /* ---------- Оболочка панели ---------- */
 
   function setActiveTab(name) {
-    [els.tabPosts, els.tabSuggestions, els.tabAbout].forEach(function (tab) {
+    [els.tabPosts, els.tabSuggestions, els.tabCategories, els.tabAbout].forEach(function (tab) {
       if (!tab) return;
       var active = tab.getAttribute("data-tab") === name;
       tab.classList.toggle("is-active", active);
@@ -552,8 +579,9 @@
     els.editorPanel.hidden = name !== "editor";
     els.aboutPanel.hidden = name !== "about";
     els.suggestionsPanel.hidden = name !== "suggestions";
+    els.categoriesPanel.hidden = name !== "categories";
     els.adminTabs.hidden = name === "editor";
-    if (name === "posts" || name === "suggestions" || name === "about") setActiveTab(name);
+    if (name === "posts" || name === "suggestions" || name === "categories" || name === "about") setActiveTab(name);
   }
 
   async function fetchPosts() {
@@ -581,6 +609,8 @@
 
     try {
       await fetchPosts();
+      if (VP.fetchCategories) await VP.fetchCategories();
+      refreshCategoryOptions();
       els.adminLoading.hidden = true;
       els.adminWorkspace.hidden = false;
       showPanel("posts");
@@ -732,6 +762,223 @@
     });
   }
 
+  /* ---------- Рубрики ---------- */
+
+  function refreshCategoryOptions() {
+    if (!els.postCategory) return;
+
+    var previous = els.postCategory.value;
+    var list = VP.categories || [];
+    if (!list.length) return;
+
+    els.postCategory.innerHTML = list.map(function (category) {
+      return '<option value="' + VP.escapeHtml(category.id) + '">' +
+        VP.escapeHtml(category.label) + "</option>";
+    }).join("");
+
+    var exists = Array.prototype.some.call(els.postCategory.options, function (option) {
+      return option.value === previous;
+    });
+    els.postCategory.value = exists ? previous : els.postCategory.options[0].value;
+  }
+
+  function categoryRowMarkup(category) {
+    var count = state.posts.filter(function (post) {
+      return post.category === category.id;
+    }).length;
+
+    return (
+      '<article class="category-row">' +
+        '<div class="category-row__info">' +
+          '<strong>' + VP.escapeHtml(category.label) + "</strong>" +
+          '<span class="field-hint">' + VP.escapeHtml(category.id) +
+            " · " + count + " " + VP.plural(count, ["статья", "статьи", "статей"]) + "</span>" +
+        "</div>" +
+        '<button class="text-btn text-btn--danger" type="button" data-category-delete="' +
+          VP.escapeHtml(category.id) + '">Удалить</button>' +
+      "</article>"
+    );
+  }
+
+  function renderCategories() {
+    if (!els.categoriesList) return;
+
+    var list = VP.categories || [];
+    if (els.categoriesCount) {
+      els.categoriesCount.textContent = list.length
+        ? list.length + " " + VP.plural(list.length, ["рубрика", "рубрики", "рубрик"]) + " на сайте"
+        : "Справочник рубрик пуст";
+    }
+
+    els.categoriesList.innerHTML = list.length
+      ? list.map(categoryRowMarkup).join("")
+      : '<div class="admin-empty"><p>Рубрики пока не загружены.</p></div>';
+  }
+
+  async function loadCategories(options) {
+    if (!supabase) return;
+
+    options = options || {};
+    state.categoriesLoading = true;
+    if (els.categoriesCount) els.categoriesCount.textContent = "Загружаем рубрики…";
+
+    try {
+      var result = VP.fetchCategories
+        ? await VP.fetchCategories({ force: Boolean(options.force) })
+        : { data: VP.categories || [], error: null, fallback: true };
+
+      if (result.error) throw result.error;
+
+      state.categoriesLoaded = true;
+      renderCategories();
+      refreshCategoryOptions();
+
+      if (result.fallback && els.categoryFormStatus) {
+        setStatus(els.categoryFormStatus, "Рубрики из справочника пока недоступны. Примените sql/migration_v4.sql.", true);
+      } else if (els.categoryFormStatus) {
+        setStatus(els.categoryFormStatus, "");
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки рубрик:", error);
+      state.categoriesLoaded = false;
+      renderCategories();
+      if (els.categoriesCount) els.categoriesCount.textContent = "Не удалось загрузить рубрики";
+      if (els.categoryFormStatus) setStatus(els.categoryFormStatus, apiErrorMessage(error), true);
+    } finally {
+      state.categoriesLoading = false;
+    }
+  }
+
+  function showCategories() {
+    showPanel("categories");
+    if (!state.categoriesLoaded && !state.categoriesLoading) loadCategories();
+    else renderCategories();
+  }
+
+  async function addCategory() {
+    if (!supabase) return;
+
+    var name = String(els.categoryNameInput.value || "").trim().replace(/\s+/g, " ");
+    if (!name) {
+      setStatus(els.categoryFormStatus, "Введите название рубрики.", true);
+      els.categoryNameInput.focus();
+      return;
+    }
+
+    var duplicate = (VP.categories || []).some(function (category) {
+      return category.label.toLowerCase() === name.toLowerCase() || category.id === name.toLowerCase();
+    });
+    if (duplicate) {
+      setStatus(els.categoryFormStatus, "Такая рубрика уже есть.", true);
+      return;
+    }
+
+    var maxOrder = (VP.categories || []).reduce(function (max, category) {
+      return Math.max(max, Number(category.sortOrder) || 0);
+    }, 0);
+
+    els.categoryAddBtn.disabled = true;
+    setStatus(els.categoryFormStatus, "Добавляем рубрику…");
+
+    try {
+      var response = await supabase
+        .from("categories")
+        .insert({ name: name, sort_order: maxOrder + 1 })
+        .select("id")
+        .maybeSingle();
+
+      if (response.error) throw response.error;
+
+      els.categoryNameInput.value = "";
+      toast("Рубрика добавлена.");
+      await loadCategories({ force: true });
+    } catch (error) {
+      console.error("Ошибка добавления рубрики:", error);
+      var message = apiErrorMessage(error);
+      if (/23505|duplicate key/i.test(String(error && error.message || ""))) {
+        message = "Такая рубрика уже есть.";
+      } else if (/42P01|relation .* does not exist|schema cache/i.test(String(error && error.message || ""))) {
+        message = "Таблица рубрик не найдена. Выполните sql/migration_v4.sql в Supabase.";
+      }
+      setStatus(els.categoryFormStatus, message, true);
+    } finally {
+      els.categoryAddBtn.disabled = false;
+    }
+  }
+
+  async function deleteCategory(id) {
+    if (!supabase) return;
+
+    var category = (VP.categories || []).find(function (item) { return item.id === id; });
+    if (!category) return;
+
+    try {
+      var categoryValues = [id, category.label].filter(function (value, index, all) {
+        return Boolean(value) && all.indexOf(value) === index;
+      });
+      var countResponse = await supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .in("category", categoryValues);
+
+      if (countResponse.error) throw countResponse.error;
+
+      var count = Number(countResponse.count) || 0;
+      if (count > 0) {
+        var message = "Сначала перенесите " + count + " статей в другую рубрику";
+        setStatus(els.categoryFormStatus, message, true);
+        toast(message, true);
+        return;
+      }
+
+      if (!category.dbId) {
+        setStatus(els.categoryFormStatus, "Этой рубрики ещё нет в базе. Примените sql/migration_v4.sql.", true);
+        return;
+      }
+
+      var confirmed = await askConfirm({
+        title: "Удалить рубрику?",
+        text: "«" + category.label + "» исчезнет из фильтров и форм сайта.",
+        confirmLabel: "Удалить"
+      });
+      if (!confirmed) return;
+
+      var response = await supabase.from("categories").delete().eq("id", category.dbId);
+      if (response.error) throw response.error;
+
+      toast("Рубрика удалена.");
+      await loadCategories({ force: true });
+    } catch (error) {
+      console.error("Ошибка удаления рубрики:", error);
+      setStatus(els.categoryFormStatus, apiErrorMessage(error), true);
+      toast(apiErrorMessage(error), true);
+    }
+  }
+
+  if (els.tabCategories) els.tabCategories.addEventListener("click", showCategories);
+  if (els.manageCategoriesBtn) els.manageCategoriesBtn.addEventListener("click", showCategories);
+  if (els.reloadCategoriesBtn) {
+    els.reloadCategoriesBtn.addEventListener("click", function () {
+      loadCategories({ force: true });
+    });
+  }
+  if (els.categoryForm) {
+    els.categoryForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      addCategory();
+    });
+  }
+  if (els.categoriesList) {
+    els.categoriesList.addEventListener("click", function (event) {
+      var trigger = event.target.closest("[data-category-delete]");
+      if (trigger) deleteCategory(trigger.getAttribute("data-category-delete"));
+    });
+  }
+  document.addEventListener("vp:categories", function () {
+    refreshCategoryOptions();
+    if (els.categoriesPanel && !els.categoriesPanel.hidden) renderCategories();
+  });
+
   /* ---------- Редактор статьи ---------- */
 
   function updateExcerptCounter() {
@@ -742,6 +989,7 @@
     els.postPreviewWrap.hidden = true;
     els.previewToggleBtn.textContent = "Показать предпросмотр статьи";
     if (els.postPreview) els.postPreview.innerHTML = "";
+    setContentMode("editor");
   }
 
   function getEditorStatus() {
@@ -874,6 +1122,7 @@
   function updatePreviews() {
     renderCoverPreview();
     updateCardPreview();
+    if (state.contentMode === "preview") renderPreviewInto(els.contentPreview, els.postContent.value);
     if (!els.postPreviewWrap.hidden) updatePostPreview();
   }
 
@@ -910,7 +1159,14 @@
     els.postTitle.value = post ? post.title || "" : "";
     els.postExcerpt.value = post ? post.excerpt || "" : "";
     els.postContent.value = post ? post.content || "" : "";
-    els.postCategory.value = post && post.category ? post.category : "money";
+    refreshCategoryOptions();
+    var wantedCategory = post && post.category ? post.category : "money";
+    var hasCategory = Array.prototype.some.call(els.postCategory.options, function (option) {
+      return option.value === wantedCategory;
+    });
+    els.postCategory.value = hasCategory
+      ? wantedCategory
+      : (els.postCategory.options[0] ? els.postCategory.options[0].value : "money");
     els.postFeatured.checked = Boolean(post && post.is_featured);
     els.deletePostBtn.hidden = !post;
 
@@ -1015,8 +1271,8 @@
       return null;
     }
 
-    var categoryExists = VP.categories.some(function (item) {
-      return item.id === category;
+    var categoryExists = Array.prototype.some.call(els.postCategory.options, function (option) {
+      return option.value === category;
     });
     if (!categoryExists) {
       els.postFormError.textContent = "Выберите рубрику.";
@@ -1214,7 +1470,118 @@
     target.innerHTML = VP.renderMarkdown(markdown);
   }
 
-  function prefixLines(prefix) {
+  var PREFIX_GROUPS = {
+    heading: /^#{1,6}\s+/,
+    ordered: /^\d+[.)]\s+/,
+    unordered: /^[-*•]\s+(?!\[[ xX]\])/,
+    quote: /^>\s?/,
+    check: /^- \[[ xX]\]\s+/
+  };
+
+  var LINE_ACTIONS = {
+    h2: { prefix: "## ", group: "heading" },
+    h3: { prefix: "### ", group: "heading" },
+    ul: { prefix: "- ", group: "unordered" },
+    ol: { prefix: "1. ", group: "ordered" },
+    quote: { prefix: "> ", group: "quote" },
+    check: { prefix: "- [ ] ", group: "check" }
+  };
+
+  // execCommand сохраняет историю отмены Ctrl+Z; setRangeText — запасной вариант.
+  function replaceText(text, start, end, selectStart, selectEnd) {
+    var textarea = els.postContent;
+    textarea.focus();
+    try {
+      textarea.setSelectionRange(start, end);
+    } catch (error) {
+      console.warn("Не удалось восстановить выделение:", error);
+    }
+
+    var inserted = false;
+    try {
+      inserted = Boolean(document.execCommand && document.execCommand("insertText", false, text));
+    } catch (error) {
+      inserted = false;
+    }
+
+    if (!inserted) {
+      if (typeof textarea.setRangeText === "function") {
+        textarea.setRangeText(text, start, end, "end");
+      } else {
+        var value = textarea.value;
+        textarea.value = value.slice(0, start) + text + value.slice(end);
+      }
+    }
+
+    var caret = typeof selectStart === "number" ? selectStart : start + text.length;
+    var caretEnd = typeof selectEnd === "number" ? selectEnd : caret;
+    try {
+      textarea.setSelectionRange(caret, caretEnd);
+    } catch (error) {
+      console.warn("Не удалось задать выделение:", error);
+    }
+    triggerInput(textarea);
+  }
+
+  function toggleInline(markers, placeholder) {
+    var textarea = els.postContent;
+    var value = textarea.value;
+    var start = textarea.selectionStart;
+    var end = textarea.selectionEnd;
+    var selected = value.slice(start, end);
+    var list = Array.isArray(markers) ? markers : [markers];
+    var marker;
+    var length;
+    var index;
+
+    // Повторное нажатие на выделенном фрагменте снимает разметку.
+    for (index = 0; index < list.length; index += 1) {
+      marker = list[index];
+      length = marker.length;
+      if (
+        selected.length >= length * 2 &&
+        selected.slice(0, length) === marker &&
+        selected.slice(-length) === marker
+      ) {
+        var inner = selected.slice(length, -length);
+        replaceText(inner, start, end, start, start + inner.length);
+        return;
+      }
+    }
+
+    // Выделение находится внутри уже существующих звёздочек.
+    for (index = 0; index < list.length; index += 1) {
+      marker = list[index];
+      length = marker.length;
+      if (
+        start >= length &&
+        end + length <= value.length &&
+        value.slice(start - length, start) === marker &&
+        value.slice(end, end + length) === marker
+      ) {
+        replaceText(selected, start - length, end + length, start - length, start - length + selected.length);
+        return;
+      }
+    }
+
+    marker = list[0];
+    var text = selected || placeholder;
+    var replacement = marker + text + marker;
+    replaceText(
+      replacement,
+      start,
+      end,
+      start + marker.length,
+      start + marker.length + text.length
+    );
+  }
+
+  function stripGroupPrefix(line, group) {
+    var pattern = PREFIX_GROUPS[group];
+    return pattern ? line.replace(pattern, "") : line;
+  }
+
+  function applyLinePrefix(prefix, group) {
     var textarea = els.postContent;
     var value = textarea.value;
     var start = textarea.selectionStart;
@@ -1223,51 +1590,169 @@
     var lineEnd = value.indexOf("\n", end);
     if (lineEnd === -1) lineEnd = value.length;
 
-    var chunk = value.slice(lineStart, lineEnd);
-    var updated = chunk.split("\n").map(function (line) {
-      return prefix + line;
+    var lines = value.slice(lineStart, lineEnd).split("\n");
+    var allPrefixed = lines.every(function (line) {
+      return line.indexOf(prefix) === 0;
+    });
+
+    var updated = lines.map(function (line) {
+      if (allPrefixed) return line.slice(prefix.length);
+      if (line.indexOf(prefix) === 0) return line;
+      return prefix + stripGroupPrefix(line, group);
     }).join("\n");
 
-    textarea.value = value.slice(0, lineStart) + updated + value.slice(lineEnd);
-    textarea.focus();
-    textarea.setSelectionRange(lineStart, lineStart + updated.length);
-    triggerInput(textarea);
+    replaceText(updated, lineStart, lineEnd, lineStart, lineStart + updated.length);
   }
 
-  function wrapSelection(before, after, placeholder) {
+  function insertBlock(text) {
     var textarea = els.postContent;
     var value = textarea.value;
     var start = textarea.selectionStart;
     var end = textarea.selectionEnd;
-    var selected = value.slice(start, end) || placeholder;
-    var replacement = before + selected + after;
-
-    textarea.value = value.slice(0, start) + replacement + value.slice(end);
-    textarea.focus();
-    textarea.setSelectionRange(start + before.length, start + before.length + selected.length);
-    triggerInput(textarea);
+    var beforeText = value.slice(0, start);
+    var afterText = value.slice(end);
+    var before = !beforeText || /\n\n$/.test(beforeText) ? "" : (/\n$/.test(beforeText) ? "\n" : "\n\n");
+    var after = !afterText || /^\n\n/.test(afterText) ? "\n" : (/^\n/.test(afterText) ? "" : "\n\n");
+    var replacement = before + text + after;
+    var caret = start + before.length + text.length;
+    replaceText(replacement, start, end, caret, caret);
   }
+
+  function setContentMode(mode) {
+    state.contentMode = mode === "preview" ? "preview" : "editor";
+    if (els.contentField) els.contentField.classList.toggle("is-preview", state.contentMode === "preview");
+    if (els.contentPreview) els.contentPreview.hidden = state.contentMode !== "preview";
+
+    [[els.contentModeEditor, "editor"], [els.contentModePreview, "preview"]].forEach(function (pair) {
+      if (!pair[0]) return;
+      var active = pair[1] === state.contentMode;
+      pair[0].classList.toggle("is-active", active);
+      pair[0].setAttribute("aria-selected", active ? "true" : "false");
+    });
+
+    if (state.contentMode === "preview") {
+      renderPreviewInto(els.contentPreview, els.postContent.value);
+    }
+  }
+
+  function openLinkForm() {
+    if (!els.linkForm || !els.postContent) return;
+    var textarea = els.postContent;
+    state.linkSelection = { start: textarea.selectionStart, end: textarea.selectionEnd };
+
+    var selected = textarea.value.slice(state.linkSelection.start, state.linkSelection.end).trim();
+    els.linkText.value = selected || "Текст ссылки";
+    els.linkUrl.value = "";
+    els.linkForm.hidden = false;
+    els.linkText.focus();
+    els.linkText.select();
+  }
+
+  function closeLinkForm() {
+    if (els.linkForm) els.linkForm.hidden = true;
+    state.linkSelection = null;
+  }
+
+  function insertLink() {
+    var text = String(els.linkText.value || "").trim() || "Текст ссылки";
+    var url = String(els.linkUrl.value || "").trim();
+    if (!url) {
+      els.linkUrl.focus();
+      return;
+    }
+
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(url) && url.indexOf("//") !== 0) {
+      url = "https://" + url;
+    }
+    url = url.replace(/\s/g, "%20").replace(/\)/g, "%29");
+    text = text.replace(/\[/g, "").replace(/\]/g, "");
+
+    var markdown = "[" + text + "](" + url + ")";
+    var selection = state.linkSelection || {
+      start: els.postContent.selectionStart,
+      end: els.postContent.selectionEnd
+    };
+
+    replaceText(markdown, selection.start, selection.end, selection.start, selection.start + markdown.length);
+    closeLinkForm();
+    els.postContent.focus();
+  }
+
+  els.editorToolbar.addEventListener("mousedown", function (event) {
+    if (event.target.closest("button")) event.preventDefault();
+  });
 
   els.editorToolbar.addEventListener("click", function (event) {
     var button = event.target.closest("[data-action]");
     if (!button) return;
 
     var action = button.getAttribute("data-action");
-    if (action === "h2") prefixLines("## ");
-    else if (action === "ol") prefixLines("1. ");
-    else if (action === "check") prefixLines("- [ ] ");
-    else if (action === "quote") prefixLines("> ");
-    else if (action === "callout") insertAtCursor(els.postContent, "\n\n> **Важно:** \n\n");
-    else if (action === "list") prefixLines("- ");
-    else if (action === "bold") wrapSelection("**", "**", "текст");
-    else if (action === "italic") wrapSelection("_", "_", "текст");
-    else if (action === "link") wrapSelection("[", "](https://)", "текст ссылки");
+    if (LINE_ACTIONS[action]) {
+      applyLinePrefix(LINE_ACTIONS[action].prefix, LINE_ACTIONS[action].group);
+    } else if (action === "bold") {
+      toggleInline(["**"], "жирный текст");
+    } else if (action === "italic") {
+      toggleInline(["*", "_"], "курсив");
+    } else if (action === "rule") {
+      insertBlock("---");
+    } else if (action === "callout") {
+      insertBlock("> **Важно:** ");
+    } else if (action === "link") {
+      openLinkForm();
+    } else if (action === "image") {
+      state.imageSelection = {
+        start: els.postContent.selectionStart,
+        end: els.postContent.selectionEnd
+      };
+      els.inlineImageInput.click();
+    }
+  });
+
+  if (els.linkInsertBtn) els.linkInsertBtn.addEventListener("click", insertLink);
+  if (els.linkCancelBtn) els.linkCancelBtn.addEventListener("click", function () {
+    closeLinkForm();
+    els.postContent.focus();
+  });
+  if (els.linkForm) {
+    els.linkForm.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        closeLinkForm();
+        els.postContent.focus();
+      } else if (event.key === "Enter" && event.target.tagName === "INPUT") {
+        event.preventDefault();
+        insertLink();
+      }
+    });
+  }
+
+  if (els.contentModeEditor) {
+    els.contentModeEditor.addEventListener("click", function () { setContentMode("editor"); });
+  }
+  if (els.contentModePreview) {
+    els.contentModePreview.addEventListener("click", function () { setContentMode("preview"); });
+  }
+
+  els.postContent.addEventListener("keydown", function (event) {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+
+    var key = String(event.key || "").toLowerCase();
+    if (key === "b") {
+      event.preventDefault();
+      toggleInline(["**"], "жирный текст");
+    } else if (key === "i") {
+      event.preventDefault();
+      toggleInline(["*", "_"], "курсив");
+    } else if (key === "k") {
+      event.preventDefault();
+      openLinkForm();
+    }
   });
 
   els.postContent.addEventListener("input", function () {
     window.clearTimeout(postPreviewTimer);
     postPreviewTimer = window.setTimeout(function () {
       updateCardPreview();
+      if (state.contentMode === "preview") renderPreviewInto(els.contentPreview, els.postContent.value);
       if (!els.postPreviewWrap.hidden) updatePostPreview();
     }, 180);
   });
@@ -1382,21 +1867,6 @@
     setStatus(els.coverStatus, "Обложка убрана.");
   });
 
-  function insertAtCursor(textarea, text) {
-    var value = textarea.value;
-    var start = typeof textarea.selectionStart === "number" ? textarea.selectionStart : value.length;
-    var end = typeof textarea.selectionEnd === "number" ? textarea.selectionEnd : value.length;
-    textarea.value = value.slice(0, start) + text + value.slice(end);
-    var position = start + text.length;
-    textarea.focus();
-    textarea.setSelectionRange(position, position);
-    triggerInput(textarea);
-  }
-
-  els.inlineImageBtn.addEventListener("click", function () {
-    els.inlineImageInput.click();
-  });
-
   els.inlineImageInput.addEventListener("change", async function () {
     var file = els.inlineImageInput.files && els.inlineImageInput.files[0];
     if (!file) return;
@@ -1427,8 +1897,20 @@
     try {
       var url = await uploadImage(file, "inline");
       var alt = caption || "Иллюстрация к статье";
-      var prefix = els.postContent.value.trim() ? "\n\n" : "";
-      insertAtCursor(els.postContent, prefix + "![" + alt + "](" + url + ")\n");
+      var selection = state.imageSelection || {
+        start: els.postContent.selectionStart,
+        end: els.postContent.selectionEnd
+      };
+      var value = els.postContent.value;
+      var before = !selection.start || /\n\n$/.test(value.slice(0, selection.start))
+        ? ""
+        : (/\n$/.test(value.slice(0, selection.start)) ? "\n" : "\n\n");
+      var after = selection.end >= value.length || /^\n\n/.test(value.slice(selection.end))
+        ? "\n"
+        : (/^\n/.test(value.slice(selection.end)) ? "" : "\n\n");
+      var markdown = before + "![" + alt + "](" + url + ")" + after;
+      replaceText(markdown, selection.start, selection.end);
+      state.imageSelection = null;
       setStatus(els.inlineUploadStatus, "Картинка вставлена в текст.");
       toast("Картинка загружена.");
     } catch (error) {
@@ -1436,7 +1918,7 @@
       setStatus(els.inlineUploadStatus, storageErrorMessage(error), true);
     } finally {
       els.inlineImageBtn.disabled = false;
-      els.inlineImageBtn.textContent = "Вставить картинку";
+      els.inlineImageBtn.textContent = "Картинка";
       els.inlineImageInput.value = "";
     }
   });
@@ -1524,8 +2006,8 @@
 
   function createDraftFromSuggestion(suggestion) {
     var topic = String(suggestion.topic || "").trim();
-    var categoryExists = VP.categories.some(function (category) {
-      return category.id === suggestion.category;
+    var categoryExists = Array.prototype.some.call(els.postCategory.options, function (option) {
+      return option.value === suggestion.category;
     });
 
     openEditor(null);

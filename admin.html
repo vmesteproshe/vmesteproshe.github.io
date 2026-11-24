@@ -73,6 +73,7 @@
           <div class="admin-tabs" id="adminTabs" role="tablist" aria-label="Разделы панели">
             <button class="admin-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="postsPanel" data-tab="posts" id="tabPosts">Статьи</button>
             <button class="admin-tab" type="button" role="tab" aria-selected="false" aria-controls="suggestionsPanel" data-tab="suggestions" id="tabSuggestions">Предложенные темы</button>
+            <button class="admin-tab" type="button" role="tab" aria-selected="false" aria-controls="categoriesPanel" data-tab="categories" id="tabCategories">Рубрики</button>
             <button class="admin-tab" type="button" role="tab" aria-selected="false" aria-controls="aboutPanel" data-tab="about" id="tabAbout">О проекте</button>
           </div>
 
@@ -106,6 +107,25 @@
               <button class="btn btn--secondary" type="button" id="reloadSuggestionsBtn">Обновить</button>
             </div>
             <div class="suggestions-list" id="suggestionsList"></div>
+          </section>
+
+          <section id="categoriesPanel" role="tabpanel" aria-labelledby="tabCategories" hidden>
+            <div class="admin-page-head">
+              <div>
+                <h1>Рубрики</h1>
+                <p class="admin-sub" id="categoriesCount">Справочник рубрик сайта.</p>
+              </div>
+              <button class="btn btn--secondary" type="button" id="reloadCategoriesBtn">Обновить</button>
+            </div>
+
+            <form class="category-add-form" id="categoryForm" novalidate>
+              <label class="visually-hidden" for="categoryNameInput">Название рубрики</label>
+              <input class="field-input" id="categoryNameInput" type="text" maxlength="80" placeholder="Название новой рубрики" required>
+              <button class="btn" type="submit" id="categoryAddBtn">Добавить рубрику</button>
+            </form>
+            <p class="field-status" id="categoryFormStatus" role="status" aria-live="polite"></p>
+
+            <div class="categories-list" id="categoriesList"></div>
           </section>
 
           <section id="editorPanel" hidden>
@@ -146,27 +166,44 @@
                     <textarea class="field-input field-textarea" id="postExcerpt" rows="3" maxlength="240" required></textarea>
                   </div>
 
-                  <div class="field">
+                  <div class="field field--content" id="contentField">
                     <div class="field-head">
                       <label for="postContent">Текст статьи</label>
-                      <span class="field-hint">Markdown</span>
+                      <div class="editor-mode-tabs" role="tablist" aria-label="Режим текста статьи">
+                        <button class="editor-mode-tab is-active" type="button" role="tab" aria-selected="true" data-mode="editor" id="contentModeEditor">Редактор</button>
+                        <button class="editor-mode-tab" type="button" role="tab" aria-selected="false" data-mode="preview" id="contentModePreview">Предпросмотр</button>
+                      </div>
                     </div>
                     <div class="editor-toolbar" id="editorToolbar" aria-label="Форматирование текста">
-                      <button type="button" data-action="h2" title="Подзаголовок">H2</button>
-                      <button type="button" data-action="bold" title="Жирный текст"><strong>Ж</strong></button>
-                      <button type="button" data-action="italic" title="Курсив"><em>К</em></button>
+                      <button type="button" data-action="h2" title="Подзаголовок H2">H2</button>
+                      <button type="button" data-action="h3" title="Подзаголовок H3">H3</button>
+                      <button type="button" data-action="bold" title="Жирный — Ctrl+B"><strong>Ж</strong></button>
+                      <button type="button" data-action="italic" title="Курсив — Ctrl+I"><em>К</em></button>
+                      <button type="button" data-action="ul" title="Маркированный список">• Список</button>
                       <button type="button" data-action="ol" title="Нумерованный список">1. Список</button>
-                      <button type="button" data-action="check" title="Интерактивный чек-лист">Чек-лист</button>
+                      <button type="button" data-action="rule" title="Разделитель">—</button>
                       <button type="button" data-action="quote" title="Цитата">Цитата</button>
+                      <button type="button" data-action="check" title="Интерактивный чек-лист">Чек-лист</button>
                       <button type="button" data-action="callout" title="Врезка">Врезка</button>
-                      <button type="button" data-action="link" title="Ссылка">Ссылка</button>
+                      <button type="button" data-action="link" title="Ссылка — Ctrl+K">Ссылка</button>
+                      <button type="button" id="inlineImageBtn" data-action="image" title="Картинка">Картинка</button>
+                    </div>
+                    <div class="link-form" id="linkForm" hidden>
+                      <label for="linkText">Текст
+                        <input class="field-input field-input--small" id="linkText" type="text" maxlength="200" placeholder="Текст ссылки">
+                      </label>
+                      <label for="linkUrl">URL
+                        <input class="field-input field-input--small" id="linkUrl" type="text" maxlength="500" placeholder="https://example.com">
+                      </label>
+                      <button class="btn btn--small" type="button" id="linkInsertBtn">Вставить</button>
+                      <button class="text-btn text-btn--muted" type="button" id="linkCancelBtn">Отмена</button>
                     </div>
                     <textarea class="editor-textarea" id="postContent" rows="18" required></textarea>
-                    <p class="field-hint">Разметка: <code>## подзаголовок</code>, <code>**жирный**</code>, <code>1. список</code>, <code>- [ ] чек-лист</code>, <code>&gt; цитата</code>.</p>
+                    <div class="content-preview article-body admin-preview" id="contentPreview" hidden></div>
+                    <p class="field-hint content-hint">Разметка: <code>## подзаголовок</code>, <code>**жирный**</code>, <code>1. список</code>, <code>- [ ] чек-лист</code>, <code>&gt; цитата</code>.</p>
 
                     <div class="inline-upload">
                       <input type="file" id="inlineImageInput" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" hidden>
-                      <button class="btn btn--secondary btn--small" id="inlineImageBtn" type="button">Вставить картинку</button>
                       <span class="field-status" id="inlineUploadStatus"></span>
                     </div>
 
@@ -192,7 +229,10 @@
                       <input class="field-input" type="text" id="postAuthor" maxlength="120" placeholder="Имя автора">
                     </div>
                     <div class="field">
-                      <label for="postCategory">Рубрика</label>
+                      <div class="field-head">
+                        <label for="postCategory">Рубрика</label>
+                        <button class="text-btn text-btn--compact" id="manageCategoriesBtn" type="button">Рубрики →</button>
+                      </div>
                       <select class="field-input" id="postCategory" required>
                         <option value="money">Деньги</option>
                         <option value="home">Быт</option>

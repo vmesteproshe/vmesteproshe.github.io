@@ -1573,6 +1573,54 @@ main {
   line-height: 1.55;
 }
 
+.text-btn--compact {
+  padding: 0;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---------- Рубрики ---------- */
+
+.category-add-form {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  max-width: 620px;
+}
+
+.category-add-form .field-input {
+  min-height: 46px;
+}
+
+.categories-list {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.category-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.category-row__info strong {
+  font-size: 15px;
+}
+
+.category-row__info .field-hint {
+  margin: 0;
+}
+
 /* ---------- Список статей ---------- */
 
 .posts-list {
@@ -1739,11 +1787,15 @@ main {
 }
 
 .editor-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   flex-wrap: wrap;
   border: 1px solid #d9d9d9;
   border-bottom: 0;
   background: var(--surface);
+  box-shadow: 0 2px 6px rgba(17, 17, 17, 0.04);
 }
 
 .editor-toolbar button {
@@ -1764,6 +1816,71 @@ main {
   color: var(--accent);
 }
 
+.editor-mode-tabs {
+  display: inline-flex;
+  border: 1px solid var(--line);
+}
+
+.editor-mode-tab {
+  padding: 4px 10px;
+  border: 0;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.editor-mode-tab + .editor-mode-tab {
+  border-left: 1px solid var(--line);
+}
+
+.editor-mode-tab.is-active {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.link-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #d9d9d9;
+  border-bottom: 0;
+  background: var(--surface);
+}
+
+.link-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.link-form .field-input {
+  min-height: 38px;
+}
+
+.link-form .btn,
+.link-form .text-btn {
+  margin-bottom: 7px;
+}
+
+.content-preview {
+  min-height: 440px;
+  padding: 18px;
+  border: 1px solid #d9d9d9;
+  background: var(--bg);
+  overflow: auto;
+}
+
+.field--content.is-preview .editor-toolbar,
+.field--content.is-preview .link-form,
+.field--content.is-preview .editor-textarea,
+.field--content.is-preview .content-hint {
+  display: none;
+}
+
 .editor-textarea {
   display: block;
   width: 100%;
@@ -1779,7 +1896,8 @@ main {
   tab-size: 2;
 }
 
-.editor-toolbar + .editor-textarea {
+.editor-toolbar + .editor-textarea,
+.editor-toolbar + .link-form + .editor-textarea {
   border-top: 0;
 }
 
@@ -3119,6 +3237,19 @@ mark {
 
   .cover-variants {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .link-form {
+    grid-template-columns: 1fr;
+  }
+
+  .link-form .btn,
+  .link-form .text-btn {
+    margin-bottom: 0;
+  }
+
+  .category-add-form {
+    flex-direction: column;
   }
 }
 
