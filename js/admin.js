@@ -42,6 +42,11 @@
     reloadSuggestionsBtn: $("reloadSuggestionsBtn"),
     editorTitle: $("editorTitle"),
     editorSaveStatus: $("editorSaveStatus"),
+    editorDraftStatus: $("editorDraftStatus"),
+    draftBanner: $("draftBanner"),
+    draftBannerTime: $("draftBannerTime"),
+    draftRestoreBtn: $("draftRestoreBtn"),
+    draftDiscardBtn: $("draftDiscardBtn"),
     savePostBtn: $("savePostBtn"),
     savePostBtnBottom: $("savePostBtnBottom"),
     backToListBtn: $("backToListBtn"),
@@ -50,6 +55,7 @@
     postExcerpt: $("postExcerpt"),
     excerptCounter: $("excerptCounter"),
     postContent: $("postContent"),
+    postAuthor: $("postAuthor"),
     editorToolbar: $("editorToolbar"),
     postPreviewWrap: $("postPreviewWrap"),
     postPreview: $("postPreview"),
@@ -96,7 +102,10 @@
     suggestions: [],
     suggestionsLoaded: false,
     suggestionsLoading: false,
-    editorStatus: "published"
+    editorStatus: "published",
+    draftKey: null,
+    lastLocalJson: "",
+    localSavedAt: null
   };
 
   var confirmResolve = null;
@@ -129,7 +138,7 @@
       return "Нет прав на это действие. Проверьте RLS-политики и войдите заново.";
     }
     if (/42703|column .* does not exist|PGRST204/i.test(message)) {
-      return "В базе нет новых полей. Выполните sql/migration_v2.sql в Supabase.";
+      return "В базе нет новых полей. Выполните sql/migration_v3.sql в Supabase.";
     }
     if (/schema cache|does not exist|42P01/i.test(message)) {
       return "Таблица не найдена. Выполните SQL-скрипты из папки sql.";
@@ -170,6 +179,184 @@
   function triggerInput(element) {
     element.dispatchEvent(new Event("input", { bubbles: true }));
   }
+
+  /* ---------- Локальная копия (автосохранение) ---------- */
+
+  var DRAFT_NEW_KEY = "vp_draft_new";
+  var DRAFT_PREFIX = "vp_draft_";
+  var AUTHOR_STORAGE_KEY = "vp_author_last";
+  var LOCAL_SAVE_INTERVAL = 6000;
+
+  function draftKeyFor(id) {
+    return id ? DRAFT_PREFIX + id : DRAFT_NEW_KEY;
+  }
+
+  function storageGet(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (error) {
+      console.warn("Локальное хранилище недоступно:", error);
+      return null;
+    }
+  }
+
+  function storageSet(key, value) {
+    try {
+      window.localStorage.setItem(key, value);
+      return true;
+    } catch (error) {
+      console.warn("Не удалось сохранить локальную копию:", error);
+      return false;
+    }
+  }
+
+  function storageRemove(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (error) {
+      console.warn("Не удалось удалить локальную копию:", error);
+    }
+  }
+
+  function readLocalDraft(key) {
+    var raw = storageGet(key);
+    if (!raw) return null;
+    try {
+      var data = JSON.parse(raw);
+      return data && typeof data === "object" ? data : null;
+    } catch (error) {
+      console.warn("Не удалось прочитать локальную копию:", error);
+      return null;
+    }
+  }
+
+  function formatClock(value) {
+    var date = value ? new Date(value) : new Date();
+    if (isNaN(date.getTime())) return "";
+    return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function formatDraftTime(value) {
+    var date = value ? new Date(value) : null;
+    if (!date || isNaN(date.getTime())) return "";
+    var clock = formatClock(date);
+    if (date.toDateString() === new Date().toDateString()) return clock;
+    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) + ", " + clock;
+  }
+
+  function localDraftData() {
+    return {
+      title: els.postTitle ? els.postTitle.value : "",
+      excerpt: els.postExcerpt ? els.postExcerpt.value : "",
+      content: els.postContent ? els.postContent.value : "",
+      category: els.postCategory ? els.postCategory.value : "money",
+      author: els.postAuthor ? els.postAuthor.value : "",
+      status: getEditorStatus(),
+      is_featured: Boolean(els.postFeatured && els.postFeatured.checked),
+      cover_url: els.coverUrl ? els.coverUrl.value : "",
+      cover_variant: state.coverVariant
+    };
+  }
+
+  function showDraftBanner(draft) {
+    if (!els.draftBanner) return;
+    if (els.draftBannerTime) {
+      els.draftBannerTime.textContent = "Сохранено " + formatDraftTime(draft && draft.savedAt);
+    }
+    els.draftBanner.hidden = false;
+  }
+
+  function hideDraftBanner() {
+    if (els.draftBanner) els.draftBanner.hidden = true;
+  }
+
+  function saveLocalDraft() {
+    if (!state.draftKey) return;
+    if (els.draftBanner && !els.draftBanner.hidden) return;
+
+    var data = localDraftData();
+    var signature = JSON.stringify(data);
+    if (signature === state.lastLocalJson) return;
+
+    data.savedAt = new Date().toISOString();
+    if (!storageSet(state.draftKey, JSON.stringify(data))) return;
+
+    state.lastLocalJson = signature;
+    state.localSavedAt = data.savedAt;
+    if (els.editorDraftStatus) {
+      els.editorDraftStatus.textContent = "Локальная копия: " + formatClock(data.savedAt);
+    }
+  }
+
+  function clearLocalDraft() {
+    if (state.draftKey) storageRemove(state.draftKey);
+    state.lastLocalJson = "";
+    state.localSavedAt = null;
+    if (els.editorDraftStatus) els.editorDraftStatus.textContent = "";
+    hideDraftBanner();
+  }
+
+  function applyLocalDraft(draft) {
+    if (!draft) return;
+
+    els.postTitle.value = typeof draft.title === "string" ? draft.title : "";
+    els.postExcerpt.value = typeof draft.excerpt === "string" ? draft.excerpt : "";
+    els.postContent.value = typeof draft.content === "string" ? draft.content : "";
+
+    var categoryExists = VP.categories.some(function (item) {
+      return item.id === draft.category;
+    });
+    els.postCategory.value = categoryExists ? draft.category : "money";
+
+    if (els.postAuthor) {
+      els.postAuthor.value = typeof draft.author === "string" ? draft.author : "";
+    }
+    els.postFeatured.checked = Boolean(draft.is_featured);
+
+    setEditorStatus(draft.status === "draft" ? "draft" : "published");
+    setCover(typeof draft.cover_url === "string" ? draft.cover_url : "");
+    setCoverVariant(draft.cover_variant);
+
+    updateExcerptCounter();
+    resetPreview();
+    updatePreviews();
+    state.editorDirty = true;
+  }
+
+  function restoreLocalDraft() {
+    var draft = readLocalDraft(state.draftKey);
+    if (!draft) {
+      hideDraftBanner();
+      return;
+    }
+
+    applyLocalDraft(draft);
+    state.lastLocalJson = JSON.stringify(localDraftData());
+    state.localSavedAt = draft.savedAt || null;
+
+    if (els.editorDraftStatus) {
+      els.editorDraftStatus.textContent = "Локальная копия: " + formatClock(draft.savedAt);
+    }
+    hideDraftBanner();
+    toast("Локальная копия восстановлена.");
+  }
+
+  function discardLocalDraft() {
+    storageRemove(state.draftKey);
+    state.lastLocalJson = "";
+    state.localSavedAt = null;
+    if (els.editorDraftStatus) els.editorDraftStatus.textContent = "";
+    hideDraftBanner();
+    toast("Локальная копия сброшена.");
+  }
+
+  if (els.draftRestoreBtn) els.draftRestoreBtn.addEventListener("click", restoreLocalDraft);
+  if (els.draftDiscardBtn) els.draftDiscardBtn.addEventListener("click", discardLocalDraft);
+
+  window.setInterval(function () {
+    if (els.editorPanel.hidden || !state.editorDirty) return;
+    saveLocalDraft();
+  }, LOCAL_SAVE_INTERVAL);
 
   /* ---------- Модальное подтверждение ---------- */
 
@@ -576,6 +763,7 @@
       excerpt: els.postExcerpt ? els.postExcerpt.value.trim() : "",
       content: els.postContent ? els.postContent.value : "",
       category: els.postCategory ? els.postCategory.value : "money",
+      author: els.postAuthor ? els.postAuthor.value.trim() : "",
       cover_url: els.coverUrl ? els.coverUrl.value.trim() : "",
       cover_variant: state.coverVariant,
       status: getEditorStatus(),
@@ -707,6 +895,10 @@
   function openEditor(post) {
     state.editingId = post ? post.id : null;
     state.editorDirty = false;
+    state.draftKey = draftKeyFor(state.editingId);
+    state.lastLocalJson = "";
+    state.localSavedAt = null;
+    if (els.editorDraftStatus) els.editorDraftStatus.textContent = "";
     els.postForm.reset();
     els.postFormError.hidden = true;
     els.postFormError.textContent = "";
@@ -722,6 +914,11 @@
     els.postFeatured.checked = Boolean(post && post.is_featured);
     els.deletePostBtn.hidden = !post;
 
+    if (els.postAuthor) {
+      var lastAuthor = storageGet(AUTHOR_STORAGE_KEY) || "";
+      els.postAuthor.value = post ? post.author || "" : lastAuthor;
+    }
+
     setEditorStatus(post && post.status === "draft" ? "draft" : "published");
     state.coverVariant = VP.normalizeCoverVariant(post ? post.cover_variant : "default");
     setCover(post ? post.cover_url || "" : "");
@@ -729,6 +926,11 @@
     updateExcerptCounter();
     resetPreview();
     updatePreviews();
+
+    var localDraft = readLocalDraft(state.draftKey);
+    if (localDraft) showDraftBanner(localDraft);
+    else hideDraftBanner();
+
     showPanel("editor");
     window.scrollTo({ top: 0, behavior: "auto" });
     window.setTimeout(function () {
@@ -828,6 +1030,7 @@
       category: category,
       excerpt: excerpt,
       content: content,
+      author: els.postAuthor ? els.postAuthor.value.trim() || null : null,
       cover_url: els.coverUrl.value.trim() || null,
       cover_variant: state.coverVariant,
       status: getEditorStatus(),
@@ -863,16 +1066,26 @@
       var response = await performPostSave(payload);
       var usedLegacy = false;
 
-      // Если миграция ещё не применена, сохраняем без новых колонок.
+      // Если колонка author ещё не добавлена, сохраняем без неё.
       if (response.error && VP.isMissingColumnError && VP.isMissingColumnError(response.error)) {
-        var legacyPayload = Object.assign({}, payload);
-        delete legacyPayload.status;
-        delete legacyPayload.cover_variant;
+        var retryPayload = Object.assign({}, payload);
+        delete retryPayload.author;
 
-        var retry = await performPostSave(legacyPayload);
+        var retry = await performPostSave(retryPayload);
         if (!retry.error) {
           response = retry;
           usedLegacy = true;
+        } else if (VP.isMissingColumnError(retry.error)) {
+          // Более старая схема: нет и статусов, и стилей обложки.
+          var legacyPayload = Object.assign({}, retryPayload);
+          delete legacyPayload.status;
+          delete legacyPayload.cover_variant;
+
+          var legacyRetry = await performPostSave(legacyPayload);
+          if (!legacyRetry.error) {
+            response = legacyRetry;
+            usedLegacy = true;
+          }
         }
       }
 
@@ -896,8 +1109,13 @@
       state.editorDirty = false;
       state.editingId = null;
 
+      clearLocalDraft();
+      if (els.postAuthor && payload.author) {
+        storageSet(AUTHOR_STORAGE_KEY, payload.author);
+      }
+
       if (usedLegacy) {
-        toast("Сохранено. Чтобы включить статусы и стили обложек, выполните sql/migration_v2.sql.", true);
+        toast("Сохранено. Чтобы включить автора, статусы и стили обложек, выполните sql/migration_v3.sql.", true);
       } else if (wasEditing) {
         toast(isDraft ? "Черновик обновлён." : "Статья обновлена.");
       } else {
@@ -965,6 +1183,7 @@
         state.editingId = null;
         state.editorDirty = false;
       }
+      storageRemove(draftKeyFor(post.id));
 
       toast("Статья удалена.");
       try {
@@ -1310,6 +1529,7 @@
     });
 
     openEditor(null);
+    hideDraftBanner();
 
     els.postTitle.value = topic.slice(0, 200);
     els.postCategory.value = categoryExists ? suggestion.category : "money";

@@ -109,6 +109,17 @@
           </section>
 
           <section id="editorPanel" hidden>
+            <div class="draft-banner" id="draftBanner" hidden>
+              <div class="draft-banner__text">
+                <strong>Есть локальная копия</strong>
+                <span class="field-status" id="draftBannerTime"></span>
+              </div>
+              <div class="draft-banner__actions">
+                <button class="btn btn--small" type="button" id="draftRestoreBtn">Восстановить</button>
+                <button class="text-btn text-btn--muted" type="button" id="draftDiscardBtn">Сбросить</button>
+              </div>
+            </div>
+
             <div class="editor-head">
               <button class="text-btn" id="backToListBtn" type="button">← К статьям</button>
               <div class="editor-head__actions">
@@ -177,6 +188,10 @@
                 <aside class="editor-side">
                   <div class="side-box">
                     <div class="field">
+                      <label for="postAuthor">Автор <span class="field-optional">необязательно</span></label>
+                      <input class="field-input" type="text" id="postAuthor" maxlength="120" placeholder="Имя автора">
+                    </div>
+                    <div class="field">
                       <label for="postCategory">Рубрика</label>
                       <select class="field-input" id="postCategory" required>
                         <option value="money">Деньги</option>
@@ -229,6 +244,7 @@
                 </aside>
               </div>
             </form>
+            <p class="field-status editor-draft-status" id="editorDraftStatus" aria-live="polite"></p>
           </section>
 
           <section id="aboutPanel" role="tabpanel" aria-labelledby="tabAbout" hidden>

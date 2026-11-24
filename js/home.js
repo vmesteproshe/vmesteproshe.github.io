@@ -155,11 +155,14 @@
       ? '<time datetime="' + window.VP.escapeHtml(window.VP.toIsoDate(post.created_at)) + '">' +
         window.VP.escapeHtml(window.VP.formatDate(post.created_at)) + "</time>"
       : "";
+    var author = post.author
+      ? "<span>" + window.VP.escapeHtml(post.author) + "</span>"
+      : "";
     var reading = window.VP.getReadingTime(post.content, true);
     var readingMarkup = reading ? "<span>" + window.VP.escapeHtml(reading) + "</span>" : "";
 
-    if (!date && !readingMarkup) return "";
-    return '<div class="' + className + '">' + date + readingMarkup + "</div>";
+    if (!date && !author && !readingMarkup) return "";
+    return '<div class="' + className + '">' + date + author + readingMarkup + "</div>";
   }
 
   function cardMarkup(post) {
@@ -320,7 +323,7 @@
 
   function readerMarkup(post) {
     var category = window.VP.getCategory(post.category);
-    var content = window.VP.renderMarkdown(post.content);
+    var content = window.VP.renderMarkdown(post.content, { toc: true });
     var cover = window.VP.coverMarkup(post, { eager: true });
 
     return (

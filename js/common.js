@@ -163,7 +163,8 @@
       .replace(/\n/g, "<br>") + "</p>";
   }
 
-  function renderMarkdown(markdown) {
+  function renderMarkdown(markdown, options) {
+    options = options || {};
     if (!window.marked || typeof window.marked.parse !== "function") {
       return fallbackText(markdown);
     }
@@ -219,7 +220,62 @@
       checkbox.setAttribute("aria-label", "Отметить пункт чек-листа");
     });
 
-    return template.innerHTML;
+    var toc = options.toc ? buildTableOfContents(template.content) : "";
+    return toc + template.innerHTML;
+  }
+
+  var TRANSLIT = {
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e",
+    "ж": "zh", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m",
+    "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+    "ф": "f", "х": "h", "ц": "c", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "",
+    "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya"
+  };
+
+  function slugifyHeading(value) {
+    return String(value || "")
+      .toLowerCase()
+      .split("")
+      .map(function (char) {
+        if (Object.prototype.hasOwnProperty.call(TRANSLIT, char)) return TRANSLIT[char];
+        if (/[a-z0-9]/.test(char)) return char;
+        if (/\s|[-–—]/.test(char)) return "-";
+        return "";
+      })
+      .join("")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60);
+  }
+
+  // Оглавление показываем, только если в статье больше трёх подзаголовков h2.
+  function buildTableOfContents(container) {
+    var headings = Array.prototype.slice.call(container.querySelectorAll("h2"));
+    if (headings.length <= 3) return "";
+
+    var used = {};
+    var items = headings.map(function (heading) {
+      var label = (heading.textContent || "").trim() || "Раздел";
+      var base = slugifyHeading(label) || "section";
+      var id = base;
+      var index = 2;
+
+      while (used[id]) {
+        id = base + "-" + index;
+        index += 1;
+      }
+      used[id] = true;
+      heading.id = id;
+
+      return '<li><a href="#' + escapeHtml(id) + '">' + escapeHtml(label) + "</a></li>";
+    });
+
+    return (
+      '<nav class="article-toc" aria-label="Содержание">' +
+        '<p class="article-toc__title">Содержание</p>' +
+        "<ol>" + items.join("") + "</ol>" +
+      "</nav>"
+    );
   }
 
   function coverMarkup(post, options) {
@@ -277,7 +333,7 @@
   }
 
   var POST_FIELDS_FULL =
-    "id,title,category,excerpt,content,cover_url,cover_variant,status,is_featured,created_at";
+    "id,title,category,excerpt,content,cover_url,cover_variant,author,status,is_featured,created_at";
   var POST_FIELDS_LEGACY =
     "id,title,category,excerpt,content,cover_url,is_featured,created_at";
 

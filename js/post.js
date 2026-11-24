@@ -53,6 +53,9 @@
         window.VP.escapeHtml(window.VP.formatDate(post.created_at)) + "</time>"
       : "";
     var reading = window.VP.getReadingTime(post.content, true);
+    var author = post.author
+      ? "<span>" + window.VP.escapeHtml(post.author) + "</span>"
+      : "";
     return (
       '<article class="card">' +
         '<a class="card__media" href="' + window.VP.escapeHtml(url) + '" tabindex="-1" aria-hidden="true">' +
@@ -64,7 +67,7 @@
           '<h2 class="card__title"><a href="' + window.VP.escapeHtml(url) + '">' +
             window.VP.escapeHtml(post.title || "Без заголовка") + "</a></h2>" +
           (post.excerpt ? '<p class="card__excerpt">' + window.VP.escapeHtml(post.excerpt) + "</p>" : "") +
-          '<div class="card__date">' + date + "<span>" + window.VP.escapeHtml(reading) + "</span></div>" +
+          '<div class="card__date">' + date + author + "<span>" + window.VP.escapeHtml(reading) + "</span></div>" +
         "</div>" +
       "</article>"
     );
@@ -75,7 +78,10 @@
     var date = window.VP.formatDate(post.created_at);
     var isoDate = window.VP.toIsoDate(post.created_at);
     var readingTime = window.VP.getReadingTime(post.content, true);
-    var content = window.VP.renderMarkdown(post.content);
+    var content = window.VP.renderMarkdown(post.content, { toc: true });
+    var author = post.author
+      ? '<span class="article-author">' + window.VP.escapeHtml(post.author) + "</span>"
+      : "";
 
     return (
       '<article class="article">' +
@@ -90,6 +96,7 @@
           (post.excerpt ? '<p class="article-dek">' + window.VP.escapeHtml(post.excerpt) + "</p>" : "") +
           '<div class="article-meta">' +
             (date ? '<time datetime="' + window.VP.escapeHtml(isoDate) + '">' + window.VP.escapeHtml(date) + "</time>" : "") +
+            author +
             "<span>" + window.VP.escapeHtml(readingTime) + "</span>" +
           "</div>" +
         "</header>" +
