@@ -1978,7 +1978,8 @@ main {
 .field--content.is-preview .editor-toolbar,
 .field--content.is-preview .link-form,
 .field--content.is-preview .editor-textarea,
-.field--content.is-preview .content-hint {
+.field--content.is-preview .content-hint,
+.field--content.is-preview .content-stats {
   display: none;
 }
 
@@ -2008,8 +2009,27 @@ main {
   outline-offset: 0;
 }
 
+.editor-textarea.is-drag-over {
+  border-color: var(--accent);
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  background: var(--surface);
+}
+
 .editor-main .field-hint {
   margin-top: 7px;
+}
+
+.content-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 20px;
+  margin-top: 0;
+}
+
+.content-stats span + span {
+  padding-left: 20px;
+  border-left: 1px solid var(--line);
 }
 
 .inline-upload {

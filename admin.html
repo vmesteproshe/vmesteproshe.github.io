@@ -201,6 +201,11 @@
                     <textarea class="editor-textarea" id="postContent" rows="18" required></textarea>
                     <div class="content-preview article-body admin-preview" id="contentPreview" hidden></div>
                     <p class="field-hint content-hint">Разметка: <code>## подзаголовок</code>, <code>**жирный**</code>, <code>1. список</code>, <code>- [ ] чек-лист</code>, <code>&gt; цитата</code>.</p>
+                    <p class="field-hint content-stats" id="contentStats" role="status" aria-live="polite">
+                      <span id="contentChars">0 символов без пробелов</span>
+                      <span id="contentWords">0 слов</span>
+                      <span id="contentReadingTime">—</span>
+                    </p>
 
                     <div class="inline-upload">
                       <input type="file" id="inlineImageInput" accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/svg+xml" hidden>

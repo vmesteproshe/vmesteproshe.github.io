@@ -64,6 +64,10 @@
     postTitle: $("postTitle"),
     postExcerpt: $("postExcerpt"),
     excerptCounter: $("excerptCounter"),
+    contentStats: $("contentStats"),
+    contentChars: $("contentChars"),
+    contentWords: $("contentWords"),
+    contentReadingTime: $("contentReadingTime"),
     postContent: $("postContent"),
     postAuthor: $("postAuthor"),
     editorToolbar: $("editorToolbar"),
@@ -116,6 +120,7 @@
     aboutLoaded: false,
     aboutLoading: false,
     editorDirty: false,
+    unsavedChanges: false,
     statusFilter: "all",
     coverVariant: "default",
     suggestions: [],
@@ -203,6 +208,12 @@
 
   function triggerInput(element) {
     element.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  // Единый флаг несохранённых изменений формы статьи.
+  function setArticleDirty(isDirty) {
+    state.unsavedChanges = Boolean(isDirty);
+    state.editorDirty = state.unsavedChanges;
   }
 
   /* ---------- Локальная копия (автосохранение) ---------- */
@@ -346,9 +357,10 @@
     setCoverVariant(draft.cover_variant);
 
     updateExcerptCounter();
+    updateContentStats();
     resetPreview();
     updatePreviews();
-    state.editorDirty = true;
+    setArticleDirty(true);
   }
 
   function restoreLocalDraft() {
@@ -382,7 +394,7 @@
   if (els.draftDiscardBtn) els.draftDiscardBtn.addEventListener("click", discardLocalDraft);
 
   window.setInterval(function () {
-    if (els.editorPanel.hidden || !state.editorDirty) return;
+    if (els.editorPanel.hidden || !state.unsavedChanges) return;
     saveLocalDraft();
   }, LOCAL_SAVE_INTERVAL);
 
@@ -444,7 +456,7 @@
     state.posts = [];
     state.editingId = null;
     state.aboutLoaded = false;
-    state.editorDirty = false;
+    setArticleDirty(false);
     state.suggestions = [];
     state.suggestionsLoaded = false;
     state.suggestionsLoading = false;
@@ -1064,6 +1076,25 @@
     els.excerptCounter.textContent = els.postExcerpt.value.length + " / 240";
   }
 
+  var CONTENT_WORDS_PER_MINUTE = 150;
+
+  function updateContentStats() {
+    if (!els.contentStats) return;
+
+    var text = els.postContent ? els.postContent.value : "";
+    var chars = text.replace(/\s/g, "").length;
+    var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    var minutes = words ? Math.max(1, Math.ceil(words / CONTENT_WORDS_PER_MINUTE)) : 0;
+
+    els.contentChars.textContent =
+      chars + " " + VP.plural(chars, ["символ", "символа", "символов"]) + " без пробелов";
+    els.contentWords.textContent =
+      words + " " + VP.plural(words, ["слово", "слова", "слов"]);
+    els.contentReadingTime.textContent = minutes
+      ? minutes + " " + VP.plural(minutes, ["минута", "минуты", "минут"]) + " чтения"
+      : "—";
+  }
+
   function resetPreview() {
     els.postPreviewWrap.hidden = true;
     els.previewToggleBtn.textContent = "Показать предпросмотр статьи";
@@ -1116,7 +1147,7 @@
       var button = event.target.closest("[data-variant]");
       if (!button) return;
       setCoverVariant(button.getAttribute("data-variant"));
-      state.editorDirty = true;
+      setArticleDirty(true);
     });
   }
 
@@ -1222,7 +1253,7 @@
 
   function openEditor(post) {
     state.editingId = post ? post.id : null;
-    state.editorDirty = false;
+    setArticleDirty(false);
     state.draftKey = draftKeyFor(state.editingId);
     state.lastLocalJson = "";
     state.localSavedAt = null;
@@ -1259,6 +1290,7 @@
     setCover(post ? post.cover_url || "" : "");
     setCoverVariant(state.coverVariant);
     updateExcerptCounter();
+    updateContentStats();
     resetPreview();
     updatePreviews();
 
@@ -1274,7 +1306,7 @@
   }
 
   async function requestCloseEditor() {
-    if (state.editorDirty) {
+    if (state.unsavedChanges) {
       var leave = await askConfirm({
         title: "Выйти без сохранения?",
         text: "Изменения в статье не сохранятся.",
@@ -1283,7 +1315,7 @@
       if (!leave) return;
     }
 
-    state.editorDirty = false;
+    setArticleDirty(false);
     state.editingId = null;
     setSaving(false);
     showPanel("posts");
@@ -1293,7 +1325,7 @@
   els.cancelEditBtn.addEventListener("click", requestCloseEditor);
 
   els.postForm.addEventListener("input", function () {
-    state.editorDirty = true;
+    setArticleDirty(true);
   });
 
   els.postExcerpt.addEventListener("input", function () {
@@ -1304,7 +1336,7 @@
   els.postTitle.addEventListener("input", updatePreviews);
 
   els.postCategory.addEventListener("change", function () {
-    state.editorDirty = true;
+    setArticleDirty(true);
     updatePreviews();
   });
 
@@ -1312,7 +1344,7 @@
     radio.addEventListener("change", function () {
       if (radio.checked) {
         state.editorStatus = radio.value;
-        state.editorDirty = true;
+        setArticleDirty(true);
         updatePreviews();
       }
     });
@@ -1451,7 +1483,7 @@
 
       var wasEditing = Boolean(state.editingId);
       var isDraft = payload.status === "draft";
-      state.editorDirty = false;
+      setArticleDirty(false);
       state.editingId = null;
 
       clearLocalDraft();
@@ -1502,10 +1534,9 @@
   });
 
   window.addEventListener("beforeunload", function (event) {
-    if (!els.editorPanel.hidden && state.editorDirty) {
-      event.preventDefault();
-      event.returnValue = "";
-    }
+    if (!state.unsavedChanges) return;
+    event.preventDefault();
+    event.returnValue = "";
   });
 
   /* ---------- Удаление ---------- */
@@ -1528,7 +1559,7 @@
 
       if (state.editingId === post.id) {
         state.editingId = null;
-        state.editorDirty = false;
+        setArticleDirty(false);
       }
       storageRemove(draftKeyFor(post.id));
 
@@ -1840,6 +1871,7 @@
   });
 
   els.postContent.addEventListener("input", function () {
+    updateContentStats();
     window.clearTimeout(postPreviewTimer);
     postPreviewTimer = window.setTimeout(function () {
       updateCardPreview();
@@ -2042,7 +2074,7 @@
     try {
       var url = await uploadImage(file, "covers");
       setCover(url);
-      state.editorDirty = true;
+      setArticleDirty(true);
       setStatus(els.coverStatus, "Обложка загружена.");
     } catch (error) {
       console.error("Ошибка загрузки обложки:", error);
@@ -2056,7 +2088,7 @@
 
   els.coverRemoveBtn.addEventListener("click", function () {
     setCover("");
-    state.editorDirty = true;
+    setArticleDirty(true);
     setStatus(els.coverStatus, "Обложка убрана.");
   });
 
@@ -2115,6 +2147,192 @@
       els.inlineImageInput.value = "";
     }
   });
+
+  /* ---------- Вставка картинок из буфера и перетаскивания ---------- */
+
+  var LOADING_MARKER = "![Загрузка...]()";
+  var loadingMarkers = [];
+  var dragDepth = 0;
+
+  function isImageType(type, name) {
+    type = String(type || "").toLowerCase();
+    if (type.indexOf("image/") === 0) return true;
+    if (type) return false;
+    return /\.(png|jpe?g|webp|avif|gif|svg)$/i.test(String(name || ""));
+  }
+
+  function isImageFile(file) {
+    return Boolean(file) && isImageType(file.type, file.name);
+  }
+
+  function findImageFile(transfer) {
+    if (!transfer) return null;
+
+    var files = transfer.files;
+    if (files) {
+      for (var i = 0; i < files.length; i += 1) {
+        if (isImageFile(files[i])) return files[i];
+      }
+    }
+
+    var items = transfer.items;
+    if (items) {
+      for (var j = 0; j < items.length; j += 1) {
+        var item = items[j];
+        if (!item || item.kind !== "file" || !isImageType(item.type, "")) continue;
+        var file = typeof item.getAsFile === "function" ? item.getAsFile() : null;
+        if (isImageFile(file)) return file;
+      }
+    }
+    return null;
+  }
+
+  function hasFileTransfer(transfer) {
+    if (!transfer) return false;
+    return Array.prototype.indexOf.call(transfer.types || [], "Files") !== -1;
+  }
+
+  function imageAltFromFile(file) {
+    var name = String((file && file.name) || "")
+      .replace(/\.[^.]+$/, "")
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120);
+    return (name || "Иллюстрация к статье").replace(/[\[\]]/g, "");
+  }
+
+  function insertLoadingMarker() {
+    var textarea = els.postContent;
+    var start = textarea.selectionStart;
+    var end = textarea.selectionEnd;
+    var marker = { start: start };
+    loadingMarkers.push(marker);
+    replaceText(LOADING_MARKER, start, end);
+    return marker;
+  }
+
+  function markerPosition(marker) {
+    var value = els.postContent.value;
+    if (value.slice(marker.start, marker.start + LOADING_MARKER.length) === LOADING_MARKER) {
+      return marker.start;
+    }
+
+    var index = -1;
+    var from = 0;
+    var closest = -1;
+    var distance = Infinity;
+    while ((index = value.indexOf(LOADING_MARKER, from)) !== -1) {
+      var current = Math.abs(index - marker.start);
+      if (current < distance) {
+        distance = current;
+        closest = index;
+      }
+      from = index + 1;
+    }
+    return closest;
+  }
+
+  function finishLoadingMarker(marker, replacement) {
+    var index = markerPosition(marker);
+    var pendingIndex = loadingMarkers.indexOf(marker);
+    if (pendingIndex !== -1) loadingMarkers.splice(pendingIndex, 1);
+
+    var textarea = els.postContent;
+    if (index === -1) {
+      if (replacement) replaceText(replacement, textarea.value.length, textarea.value.length);
+      return;
+    }
+
+    var delta = replacement.length - LOADING_MARKER.length;
+    loadingMarkers.forEach(function (other) {
+      if (other.start > index) other.start += delta;
+    });
+
+    if (replacement) {
+      replaceText(replacement, index, index + LOADING_MARKER.length);
+    } else {
+      if (typeof textarea.setRangeText === "function") {
+        textarea.setRangeText("", index, index + LOADING_MARKER.length, "end");
+      } else {
+        textarea.value = textarea.value.slice(0, index) +
+          textarea.value.slice(index + LOADING_MARKER.length);
+      }
+      triggerInput(textarea);
+    }
+  }
+
+  function resetDragOver() {
+    dragDepth = 0;
+    els.postContent.classList.remove("is-drag-over");
+  }
+
+  async function insertImageFromFile(file) {
+    if (!file) return;
+    if (!validateImage(file, els.inlineUploadStatus)) return;
+
+    var marker = insertLoadingMarker();
+    els.inlineImageBtn.disabled = true;
+    els.inlineImageBtn.textContent = "Загружаем…";
+    setStatus(els.inlineUploadStatus, "Загружаем картинку…");
+
+    try {
+      var url = await uploadImage(file, "inline");
+      var markdown = "![" + imageAltFromFile(file) + "](" + url + ")";
+      finishLoadingMarker(marker, markdown);
+      setStatus(els.inlineUploadStatus, "Картинка вставлена в текст.");
+      toast("Картинка загружена.");
+    } catch (error) {
+      console.error("Ошибка загрузки картинки:", error);
+      finishLoadingMarker(marker, "");
+      setStatus(els.inlineUploadStatus, storageErrorMessage(error), true);
+    } finally {
+      els.inlineImageBtn.disabled = false;
+      els.inlineImageBtn.textContent = "Картинка";
+    }
+  }
+
+  els.postContent.addEventListener("paste", function (event) {
+    var file = findImageFile(event.clipboardData);
+    if (!file) return;
+    event.preventDefault();
+    insertImageFromFile(file);
+  });
+
+  els.postContent.addEventListener("dragenter", function (event) {
+    if (!hasFileTransfer(event.dataTransfer)) return;
+    event.preventDefault();
+    dragDepth += 1;
+    els.postContent.classList.add("is-drag-over");
+  });
+
+  els.postContent.addEventListener("dragover", function (event) {
+    if (!hasFileTransfer(event.dataTransfer)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  });
+
+  els.postContent.addEventListener("dragleave", function (event) {
+    if (!hasFileTransfer(event.dataTransfer)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) els.postContent.classList.remove("is-drag-over");
+  });
+
+  els.postContent.addEventListener("drop", function (event) {
+    if (!hasFileTransfer(event.dataTransfer)) return;
+    event.preventDefault();
+    resetDragOver();
+
+    var file = findImageFile(event.dataTransfer);
+    if (!file) {
+      setStatus(els.inlineUploadStatus, "Перетащите изображение (JPG, PNG, WebP, AVIF, GIF или SVG).", true);
+      return;
+    }
+    insertImageFromFile(file);
+  });
+
+  window.addEventListener("dragend", resetDragOver);
+  window.addEventListener("drop", resetDragOver);
 
   /* ---------- Предложенные темы ---------- */
 
@@ -2213,7 +2431,8 @@
     els.postContent.value = topic ? "> " + topic.replace(/\s+/g, " ") + "\n\n" : "";
 
     updateExcerptCounter();
-    state.editorDirty = true;
+    updateContentStats();
+    setArticleDirty(true);
     updatePreviews();
     toast("Тема подставлена в новый черновик.");
 
@@ -2390,6 +2609,7 @@
 
   renderCoverVariants();
   setCoverVariant("default");
+  updateContentStats();
   setupConfiguration();
   showLogin();
   initAuth();
