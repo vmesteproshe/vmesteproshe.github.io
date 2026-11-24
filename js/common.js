@@ -48,6 +48,21 @@
     CATEGORY_MAP[category.id] = category;
   });
 
+  var COVER_VARIANTS = [
+    { id: "default", label: "Базовая" },
+    { id: "coral", label: "Коралл" },
+    { id: "ink", label: "Тёмная" },
+    { id: "mint", label: "Мята" },
+    { id: "sand", label: "Песок" },
+    { id: "grid", label: "Сетка" }
+  ];
+
+  var COVER_VARIANT_IDS = COVER_VARIANTS.map(function (variant) {
+    return variant.id;
+  });
+
+  var WORDS_PER_MINUTE = 150;
+
   var MONTHS = [
     "января", "февраля", "марта", "апреля", "мая", "июня",
     "июля", "августа", "сентября", "октября", "ноября", "декабря"
@@ -90,16 +105,47 @@
     return date.getFullYear() + "-" + month + "-" + day;
   }
 
-  function getReadingTime(markdown) {
-    var text = String(markdown || "")
+  function plainText(markdown) {
+    return String(markdown || "")
       .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
       .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
       .replace(/[#>*_`~|]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    if (!text) return "1 мин чтения";
-    var words = text.split(" ").length;
-    return Math.max(1, Math.ceil(words / 170)) + " мин чтения";
+  }
+
+  function readingMinutes(markdown) {
+    var text = plainText(markdown);
+    if (!text) return 1;
+    var words = text.split(" ").filter(Boolean).length;
+    return Math.max(1, Math.ceil(words / WORDS_PER_MINUTE));
+  }
+
+  function getReadingTime(markdown, short) {
+    var minutes = readingMinutes(markdown);
+    return short ? minutes + " мин" : minutes + " мин чтения";
+  }
+
+  function normalizeCoverVariant(value) {
+    var variant = String(value || "").trim().toLowerCase();
+    return COVER_VARIANT_IDS.indexOf(variant) === -1 ? "default" : variant;
+  }
+
+  function normalizePost(post) {
+    var normalized = Object.assign({}, post || {});
+    normalized.status = normalized.status === "draft" ? "draft" : "published";
+    normalized.cover_variant = normalizeCoverVariant(normalized.cover_variant);
+    normalized.is_featured = normalized.is_featured === true;
+    return normalized;
+  }
+
+  function isPublished(post) {
+    return !post || !post.status || post.status === "published";
+  }
+
+  function isMissingColumnError(error) {
+    var message = error && (error.message || error.details || error.hint);
+    return /42703|PGRST204|column .* does not exist|schema cache/i.test(String(message || ""));
   }
 
   function plural(count, forms) {
@@ -167,6 +213,12 @@
       }
     });
 
+    // Чек-листы из Markdown остаются кликабельными в статье.
+    template.content.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+      checkbox.removeAttribute("disabled");
+      checkbox.setAttribute("aria-label", "Отметить пункт чек-листа");
+    });
+
     return template.innerHTML;
   }
 
@@ -175,13 +227,14 @@
     var category = getCategory(post && post.category);
     var title = post && post.title ? post.title : "";
     var cover = post && post.cover_url ? post.cover_url : "";
+    var variant = normalizeCoverVariant(post && post.cover_variant);
     var alt = options.alt == null ? title : options.alt;
     var loading = options.eager
       ? 'loading="eager" fetchpriority="high"'
       : 'loading="lazy"';
 
     return (
-      '<div class="media ' + escapeHtml(options.className || "") + '">' +
+      '<div class="media media--variant-' + variant + " " + escapeHtml(options.className || "") + '">' +
         '<div class="media__fallback" aria-hidden="true">' +
           "<span>Вместе проще</span>" +
           "<strong>" + escapeHtml(category.label) + "</strong>" +
@@ -215,6 +268,70 @@
     return "post.html?id=" + encodeURIComponent(id);
   }
 
+  function homePostUrl(id) {
+    return "./?post=" + encodeURIComponent(id);
+  }
+
+  function categoryUrl(id) {
+    return !id || id === "all" ? "./" : "./?cat=" + encodeURIComponent(id);
+  }
+
+  var POST_FIELDS_FULL =
+    "id,title,category,excerpt,content,cover_url,cover_variant,status,is_featured,created_at";
+  var POST_FIELDS_LEGACY =
+    "id,title,category,excerpt,content,cover_url,is_featured,created_at";
+
+  async function fetchPublishedPosts(options) {
+    options = options || {};
+
+    if (!client) {
+      return { data: [], error: null, legacy: false };
+    }
+
+    function buildQuery(fields, filterByStatus) {
+      var query = client.from("posts").select(fields);
+
+      if (filterByStatus) query = query.eq("status", "published");
+      if (options.excludeId) query = query.neq("id", options.excludeId);
+      if (options.category) query = query.eq("category", options.category);
+
+      query = query.order("created_at", { ascending: false });
+      if (options.limit) query = query.limit(options.limit);
+      return query;
+    }
+
+    var response = await buildQuery(POST_FIELDS_FULL, true);
+    var legacy = false;
+
+    // Если миграция ещё не применена, читаем старую схему и считаем все статьи опубликованными.
+    if (response.error && isMissingColumnError(response.error)) {
+      response = await buildQuery(POST_FIELDS_LEGACY, false);
+      legacy = true;
+    }
+
+    if (response.error) {
+      return { data: [], error: response.error, legacy: legacy };
+    }
+
+    return {
+      data: (Array.isArray(response.data) ? response.data : []).map(normalizePost),
+      error: null,
+      legacy: legacy
+    };
+  }
+
+  async function fetchPostById(id) {
+    if (!client || !id) return { data: null, error: null };
+
+    var response = await client.from("posts").select("*").eq("id", id).maybeSingle();
+    if (response.error) return { data: null, error: response.error };
+
+    return {
+      data: response.data ? normalizePost(response.data) : null,
+      error: null
+    };
+  }
+
   function isDevHost() {
     return (
       location.protocol === "file:" ||
@@ -240,6 +357,135 @@
     setMeta('meta[property="og:image"]', data.cover_url || DEFAULT_OG_IMAGE);
     setMeta('meta[property="og:url"]', location.href);
     setMeta('meta[property="og:type"]', "article");
+  }
+
+  function suggestFormMarkup() {
+    var options = CATEGORIES.map(function (category) {
+      return '<option value="' + escapeHtml(category.id) + '">' + escapeHtml(category.label) + "</option>";
+    }).join("");
+
+    return (
+      '<section class="suggest" aria-labelledby="suggestTitle">' +
+        '<div class="container suggest__inner">' +
+          '<div class="suggest__intro">' +
+            '<p class="eyebrow">Обратная связь</p>' +
+            '<h2 id="suggestTitle">Предложить тему</h2>' +
+            '<p>Расскажите, о чём стоит написать. Вопросы читателей помогают выбрать следующий материал — мы читаем каждую заявку.</p>' +
+          "</div>" +
+          '<form class="suggest__form" id="suggestForm" novalidate>' +
+            '<div class="field">' +
+              '<label for="suggestCategory">Рубрика</label>' +
+              '<select class="field-input" id="suggestCategory" name="category">' +
+                '<option value="">Без рубрики</option>' +
+                options +
+              "</select>" +
+            "</div>" +
+            '<div class="field field--wide">' +
+              '<label for="suggestTopic">Вопрос или тема</label>' +
+              '<textarea class="field-input field-textarea" id="suggestTopic" name="topic" rows="3" maxlength="1000" required placeholder="Например: как делить расходы, если доходы разные?"></textarea>' +
+            "</div>" +
+            '<div class="field field--wide">' +
+              '<label for="suggestContact">Контакт для ответа <span class="field-optional">необязательно</span></label>' +
+              '<input class="field-input" id="suggestContact" name="contact" type="text" maxlength="200" autocomplete="email" placeholder="Почта или телеграм">' +
+            "</div>" +
+            '<p class="form-error" id="suggestError" role="alert" hidden></p>' +
+            '<div class="suggest__actions">' +
+              '<button class="btn" id="suggestSubmit" type="submit">Отправить тему</button>' +
+              '<p class="field-status" id="suggestStatus" role="status" aria-live="polite"></p>' +
+            "</div>" +
+          "</form>" +
+        "</div>" +
+      "</section>"
+    );
+  }
+
+  function initTopicSuggestForm() {
+    if (!document.getElementById("suggestForm")) {
+      var footer = document.querySelector(".site-footer");
+      if (footer) footer.insertAdjacentHTML("afterbegin", suggestFormMarkup());
+    }
+
+    var form = document.getElementById("suggestForm");
+    if (!form) return;
+
+    var categoryInput = document.getElementById("suggestCategory");
+    var topicInput = document.getElementById("suggestTopic");
+    var contactInput = document.getElementById("suggestContact");
+    var errorElement = document.getElementById("suggestError");
+    var statusElement = document.getElementById("suggestStatus");
+    var submitButton = document.getElementById("suggestSubmit");
+
+    function showError(message) {
+      if (!errorElement) return;
+      errorElement.textContent = message || "";
+      errorElement.hidden = !message;
+    }
+
+    function showStatus(message, isError) {
+      if (!statusElement) return;
+      statusElement.textContent = message || "";
+      statusElement.classList.toggle("is-error", Boolean(isError));
+      statusElement.classList.toggle("is-success", Boolean(message) && !isError);
+    }
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      showError("");
+      showStatus("");
+
+      var topic = topicInput ? topicInput.value.trim() : "";
+      var contact = contactInput ? contactInput.value.trim() : "";
+      var category = categoryInput ? categoryInput.value : "";
+
+      if (topic.length < 3) {
+        showError("Напишите вопрос или тему — хотя бы несколько слов.");
+        if (topicInput) topicInput.focus();
+        return;
+      }
+
+      if (!client) {
+        showError("Форма временно недоступна: сайт не подключён к базе данных.");
+        return;
+      }
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Отправляем…";
+      }
+      showStatus("Отправляем заявку…");
+
+      try {
+        var response = await client.from("topic_suggestions").insert({
+          category: category || null,
+          topic: topic,
+          contact: contact || null
+        });
+
+        if (response.error) throw response.error;
+
+        form.reset();
+        showStatus("Спасибо! Тема отправлена редакции.");
+        if (submitButton) submitButton.textContent = "Отправить ещё";
+      } catch (error) {
+        console.error("Ошибка отправки темы:", error);
+        if (isMissingColumnError(error) || /42P01|relation .* does not exist/i.test(String(error.message || ""))) {
+          showError("Форма пока не настроена. Выполните sql/migration_v2.sql в Supabase.");
+        } else if (/row-level security|42501/i.test(String(error.message || ""))) {
+          showError("Не удалось отправить заявку: нет прав на запись. Попробуйте позже.");
+        } else if (/failed to fetch|network|load failed/i.test(String(error.message || ""))) {
+          showError("Не удалось связаться с сервером. Проверьте интернет и попробуйте снова.");
+        } else {
+          showError("Не удалось отправить тему. Попробуйте ещё раз чуть позже.");
+        }
+        showStatus("");
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          if (submitButton.textContent === "Отправляем…") submitButton.textContent = "Отправить тему";
+        }
+      }
+    });
   }
 
   function initChrome() {
@@ -292,22 +538,34 @@
   }
 
   initChrome();
+  initTopicSuggestForm();
 
   window.VP = {
     config: config,
     isConfigured: isConfigured,
     supabase: client,
     categories: CATEGORIES,
+    coverVariants: COVER_VARIANTS,
     getCategory: getCategory,
     escapeHtml: escapeHtml,
     formatDate: formatDate,
     toIsoDate: toIsoDate,
     getReadingTime: getReadingTime,
+    readingMinutes: readingMinutes,
+    plainText: plainText,
     plural: plural,
     renderMarkdown: renderMarkdown,
     coverMarkup: coverMarkup,
+    normalizeCoverVariant: normalizeCoverVariant,
+    normalizePost: normalizePost,
+    isPublished: isPublished,
+    isMissingColumnError: isMissingColumnError,
+    fetchPublishedPosts: fetchPublishedPosts,
+    fetchPostById: fetchPostById,
     setActiveCategory: setActiveCategory,
     postUrl: postUrl,
+    homePostUrl: homePostUrl,
+    categoryUrl: categoryUrl,
     isDevHost: isDevHost,
     updateArticleMeta: updateArticleMeta,
     copyText: copyText,

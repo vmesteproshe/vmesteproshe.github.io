@@ -30,6 +30,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
   <script defer src="config.js"></script>
   <script defer src="js/common.js"></script>
   <script defer src="js/home.js"></script>
@@ -47,7 +49,7 @@
   <noscript><div><img src="https://mc.yandex.ru/watch/114493569" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
   <!-- /Yandex.Metrika counter -->
 </head>
-<body>
+<body id="top">
   <a class="skip-link" href="#main">Перейти к содержанию</a>
 
   <header class="site-header">
@@ -59,13 +61,22 @@
       <time class="header-date" id="headerDate"></time>
     </div>
     <nav class="container rubrics" aria-label="Рубрики">
-      <a href="./#all" data-category="all" aria-current="page">Все</a>
-      <a href="./#money" data-category="money">Деньги</a>
-      <a href="./#home" data-category="home">Быт</a>
-      <a href="./#docs" data-category="docs">Документы</a>
-      <a href="./#relationships" data-category="relationships">Отношения</a>
+      <a href="./" data-category="all" aria-current="page">Все</a>
+      <a href="./?cat=money" data-category="money">Деньги</a>
+      <a href="./?cat=home" data-category="home">Быт</a>
+      <a href="./?cat=docs" data-category="docs">Документы</a>
+      <a href="./?cat=relationships" data-category="relationships">Отношения</a>
       <a class="rubrics__about" href="about.html">О проекте</a>
     </nav>
+    <div class="container header-search-row">
+      <form class="header-search" id="siteSearchForm" role="search">
+        <label class="visually-hidden" for="siteSearch">Поиск по материалам</label>
+        <span class="header-search__icon" aria-hidden="true">⌕</span>
+        <input class="header-search__input" id="siteSearch" type="search" name="q" placeholder="Поиск по заголовкам, лидам и тексту" autocomplete="off">
+        <button class="header-search__clear" id="searchClear" type="button" aria-label="Очистить поиск" hidden>×</button>
+        <span class="header-search__hint" id="searchHint" aria-live="polite"></span>
+      </form>
+    </div>
   </header>
 
   <main id="main">
@@ -123,6 +134,40 @@
   </main>
 
   <footer class="site-footer">
+    <section class="suggest" aria-labelledby="suggestTitle">
+      <div class="container suggest__inner">
+        <div class="suggest__intro">
+          <p class="eyebrow">Обратная связь</p>
+          <h2 id="suggestTitle">Предложить тему</h2>
+          <p>Расскажите, о чём стоит написать. Вопросы читателей помогают выбрать следующий материал — мы читаем каждую заявку.</p>
+        </div>
+        <form class="suggest__form" id="suggestForm" novalidate>
+          <div class="field">
+            <label for="suggestCategory">Рубрика</label>
+            <select class="field-input" id="suggestCategory" name="category">
+              <option value="">Без рубрики</option>
+              <option value="money">Деньги</option>
+              <option value="home">Быт</option>
+              <option value="docs">Документы</option>
+              <option value="relationships">Отношения</option>
+            </select>
+          </div>
+          <div class="field field--wide">
+            <label for="suggestTopic">Вопрос или тема</label>
+            <textarea class="field-input field-textarea" id="suggestTopic" name="topic" rows="3" maxlength="1000" required placeholder="Например: как делить расходы, если доходы разные?"></textarea>
+          </div>
+          <div class="field field--wide">
+            <label for="suggestContact">Контакт для ответа <span class="field-optional">необязательно</span></label>
+            <input class="field-input" id="suggestContact" name="contact" type="text" maxlength="200" autocomplete="email" placeholder="Почта или телеграм">
+          </div>
+          <p class="form-error" id="suggestError" role="alert" hidden></p>
+          <div class="suggest__actions">
+            <button class="btn" id="suggestSubmit" type="submit">Отправить тему</button>
+            <p class="field-status" id="suggestStatus" role="status" aria-live="polite"></p>
+          </div>
+        </form>
+      </div>
+    </section>
     <div class="container footer-main">
       <div class="footer-brand">
         <a class="brand brand--footer" href="./" aria-label="Вместе проще — на главную">
@@ -132,16 +177,16 @@
       </div>
       <nav class="footer-nav" aria-label="Рубрики в подвале">
         <p class="footer-title">Рубрики</p>
-        <a href="./#money">Деньги</a>
-        <a href="./#home">Быт</a>
-        <a href="./#docs">Документы</a>
-        <a href="./#relationships">Отношения</a>
+        <a href="./?cat=money">Деньги</a>
+        <a href="./?cat=home">Быт</a>
+        <a href="./?cat=docs">Документы</a>
+        <a href="./?cat=relationships">Отношения</a>
       </nav>
       <nav class="footer-nav" aria-label="О проекте">
         <p class="footer-title">Проект</p>
         <a href="about.html">О проекте</a>
-        <a href="./#all">Все материалы</a>
-        <a href="#top" data-to-top>Наверх</a>
+        <a href="./">Все материалы</a>
+        <a href="#top">Наверх</a>
       </nav>
     </div>
     <div class="container footer-bottom">

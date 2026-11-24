@@ -27,13 +27,19 @@
     adminWorkspace: $("adminWorkspace"),
     adminTabs: $("adminTabs"),
     tabPosts: $("tabPosts"),
+    tabSuggestions: $("tabSuggestions"),
     tabAbout: $("tabAbout"),
     postsPanel: $("postsPanel"),
+    suggestionsPanel: $("suggestionsPanel"),
     editorPanel: $("editorPanel"),
     aboutPanel: $("aboutPanel"),
     postsCount: $("postsCount"),
     postsList: $("postsList"),
+    statusFilter: $("statusFilter"),
     newPostBtn: $("newPostBtn"),
+    suggestionsCount: $("suggestionsCount"),
+    suggestionsList: $("suggestionsList"),
+    reloadSuggestionsBtn: $("reloadSuggestionsBtn"),
     editorTitle: $("editorTitle"),
     editorSaveStatus: $("editorSaveStatus"),
     savePostBtn: $("savePostBtn"),
@@ -54,8 +60,9 @@
     coverInput: $("coverInput"),
     coverChooseBtn: $("coverChooseBtn"),
     coverRemoveBtn: $("coverRemoveBtn"),
-    coverPreviewImg: $("coverPreviewImg"),
-    coverPreviewEmpty: $("coverPreviewEmpty"),
+    coverPreview: $("coverPreview"),
+    coverVariants: $("coverVariants"),
+    cardPreview: $("cardPreview"),
     coverUrl: $("coverUrl"),
     coverStatus: $("coverStatus"),
     postCategory: $("postCategory"),
@@ -83,7 +90,13 @@
     editingId: null,
     aboutLoaded: false,
     aboutLoading: false,
-    editorDirty: false
+    editorDirty: false,
+    statusFilter: "all",
+    coverVariant: "default",
+    suggestions: [],
+    suggestionsLoaded: false,
+    suggestionsLoading: false,
+    editorStatus: "published"
   };
 
   var confirmResolve = null;
@@ -115,8 +128,11 @@
     if (/row-level security|42501/i.test(message)) {
       return "Нет прав на это действие. Проверьте RLS-политики и войдите заново.";
     }
+    if (/42703|column .* does not exist|PGRST204/i.test(message)) {
+      return "В базе нет новых полей. Выполните sql/migration_v2.sql в Supabase.";
+    }
     if (/schema cache|does not exist|42P01/i.test(message)) {
-      return "Таблица не найдена. Выполните SQL-скрипт из папки sql.";
+      return "Таблица не найдена. Выполните SQL-скрипты из папки sql.";
     }
     if (/invalid api key|apikey|jwt/i.test(message)) {
       return "Проблема с ключом или сессией. Проверьте config.js и войдите заново.";
@@ -214,6 +230,9 @@
     state.editingId = null;
     state.aboutLoaded = false;
     state.editorDirty = false;
+    state.suggestions = [];
+    state.suggestionsLoaded = false;
+    state.suggestionsLoading = false;
   }
 
   function showApp(user) {
@@ -333,7 +352,8 @@
   /* ---------- Оболочка панели ---------- */
 
   function setActiveTab(name) {
-    [els.tabPosts, els.tabAbout].forEach(function (tab) {
+    [els.tabPosts, els.tabSuggestions, els.tabAbout].forEach(function (tab) {
+      if (!tab) return;
       var active = tab.getAttribute("data-tab") === name;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", active ? "true" : "false");
@@ -344,8 +364,9 @@
     els.postsPanel.hidden = name !== "posts";
     els.editorPanel.hidden = name !== "editor";
     els.aboutPanel.hidden = name !== "about";
+    els.suggestionsPanel.hidden = name !== "suggestions";
     els.adminTabs.hidden = name === "editor";
-    if (name === "posts" || name === "about") setActiveTab(name);
+    if (name === "posts" || name === "suggestions" || name === "about") setActiveTab(name);
   }
 
   async function fetchPosts() {
@@ -355,7 +376,14 @@
       .order("created_at", { ascending: false });
 
     if (response.error) throw response.error;
-    state.posts = Array.isArray(response.data) ? response.data : [];
+    state.posts = (Array.isArray(response.data) ? response.data : []).map(function (post) {
+      var normalized = VP.normalizePost ? VP.normalizePost(post) : post;
+      normalized.status = normalized.status === "draft" ? "draft" : "published";
+      normalized.cover_variant = VP.normalizeCoverVariant
+        ? VP.normalizeCoverVariant(normalized.cover_variant)
+        : normalized.cover_variant || "default";
+      return normalized;
+    });
     renderPosts();
   }
 
@@ -401,6 +429,7 @@
 
   function postRowMarkup(post) {
     var category = VP.getCategory(post.category);
+    var isDraft = post.status === "draft";
     return (
       '<article class="admin-post">' +
         thumbnailMarkup(post) +
@@ -409,6 +438,8 @@
             '<span class="tag">' + VP.escapeHtml(category.label) + "</span>" +
             '<time datetime="' + VP.escapeHtml(VP.toIsoDate(post.created_at)) + '">' +
               VP.escapeHtml(VP.formatDate(post.created_at, true)) + "</time>" +
+            '<span class="admin-status ' + (isDraft ? "admin-status--draft" : "admin-status--published") + '">' +
+              (isDraft ? "Черновик" : "Опубликовано") + "</span>" +
             (post.is_featured ? '<span class="admin-featured-badge">Главная</span>' : "") +
           "</div>" +
           '<h3 class="admin-post__title">' +
@@ -427,12 +458,23 @@
   }
 
   function renderPosts() {
-    var count = state.posts.length;
-    els.postsCount.textContent = count
-      ? count + " " + VP.plural(count, ["материал", "материала", "материалов"]) + " на сайте"
+    var total = state.posts.length;
+    var drafts = state.posts.filter(function (post) { return post.status === "draft"; }).length;
+    var published = total - drafts;
+
+    els.postsCount.textContent = total
+      ? total + " " + VP.plural(total, ["материал", "материала", "материалов"]) +
+        " · " + published + " " + VP.plural(published, ["опубликован", "опубликовано", "опубликовано"]) +
+        " · " + drafts + " " + VP.plural(drafts, ["черновик", "черновика", "черновиков"])
       : "Пока ни одной статьи";
 
-    if (!count) {
+    var posts = state.statusFilter === "all"
+      ? state.posts
+      : state.posts.filter(function (post) {
+          return post.status === state.statusFilter;
+        });
+
+    if (!total) {
       els.postsList.innerHTML =
         '<div class="admin-empty">' +
           "<p>Здесь появятся статьи. Начните с первой — она сразу окажется на главной.</p>" +
@@ -441,7 +483,13 @@
       return;
     }
 
-    els.postsList.innerHTML = state.posts.map(postRowMarkup).join("");
+    if (!posts.length) {
+      els.postsList.innerHTML =
+        '<div class="admin-empty"><p>Нет материалов с таким статусом.</p></div>';
+      return;
+    }
+
+    els.postsList.innerHTML = posts.map(postRowMarkup).join("");
   }
 
   els.postsList.addEventListener("click", function (event) {
@@ -482,9 +530,20 @@
     showPanel("posts");
   });
 
+  els.tabSuggestions.addEventListener("click", function () {
+    showSuggestions();
+  });
+
   els.tabAbout.addEventListener("click", function () {
     showAbout();
   });
+
+  if (els.statusFilter) {
+    els.statusFilter.addEventListener("change", function () {
+      state.statusFilter = els.statusFilter.value;
+      renderPosts();
+    });
+  }
 
   /* ---------- Редактор статьи ---------- */
 
@@ -494,25 +553,147 @@
 
   function resetPreview() {
     els.postPreviewWrap.hidden = true;
-    els.previewToggleBtn.textContent = "Показать предпросмотр";
-    els.postPreview.innerHTML = "";
+    els.previewToggleBtn.textContent = "Показать предпросмотр статьи";
+    if (els.postPreview) els.postPreview.innerHTML = "";
+  }
+
+  function getEditorStatus() {
+    var checked = document.querySelector('input[name="postStatus"]:checked');
+    return checked && checked.value === "draft" ? "draft" : "published";
+  }
+
+  function setEditorStatus(status) {
+    state.editorStatus = status === "draft" ? "draft" : "published";
+    document.querySelectorAll('input[name="postStatus"]').forEach(function (radio) {
+      radio.checked = radio.value === state.editorStatus;
+    });
+  }
+
+  function editorDraftPost() {
+    return {
+      id: "preview",
+      title: els.postTitle ? els.postTitle.value.trim() : "",
+      excerpt: els.postExcerpt ? els.postExcerpt.value.trim() : "",
+      content: els.postContent ? els.postContent.value : "",
+      category: els.postCategory ? els.postCategory.value : "money",
+      cover_url: els.coverUrl ? els.coverUrl.value.trim() : "",
+      cover_variant: state.coverVariant,
+      status: getEditorStatus(),
+      is_featured: Boolean(els.postFeatured && els.postFeatured.checked),
+      created_at: new Date().toISOString()
+    };
+  }
+
+  function renderCoverVariants() {
+    if (!els.coverVariants) return;
+
+    els.coverVariants.innerHTML = VP.coverVariants.map(function (variant) {
+      return (
+        '<button class="cover-variant" type="button" role="radio" aria-checked="false" data-variant="' +
+          VP.escapeHtml(variant.id) + '" title="' + VP.escapeHtml(variant.label) + '">' +
+          '<span class="cover-variant__swatch" data-variant="' + VP.escapeHtml(variant.id) + '"></span>' +
+          '<span class="cover-variant__label">' + VP.escapeHtml(variant.label) + "</span>" +
+        "</button>"
+      );
+    }).join("");
+
+    els.coverVariants.addEventListener("click", function (event) {
+      var button = event.target.closest("[data-variant]");
+      if (!button) return;
+      setCoverVariant(button.getAttribute("data-variant"));
+      state.editorDirty = true;
+    });
+  }
+
+  function setCoverVariant(variant) {
+    state.coverVariant = VP.normalizeCoverVariant(variant);
+
+    if (els.coverVariants) {
+      els.coverVariants.querySelectorAll("[data-variant]").forEach(function (button) {
+        var active = button.getAttribute("data-variant") === state.coverVariant;
+        button.setAttribute("aria-checked", active ? "true" : "false");
+        button.classList.toggle("is-active", active);
+      });
+    }
+
+    renderCoverPreview();
+    updateCardPreview();
+  }
+
+  function renderCoverPreview() {
+    if (!els.coverPreview) return;
+    els.coverPreview.innerHTML = VP.coverMarkup(editorDraftPost(), { className: "media--preview" });
+  }
+
+  function updateCardPreview() {
+    if (!els.cardPreview) return;
+
+    var post = editorDraftPost();
+    var category = VP.getCategory(post.category);
+    var title = post.title || "Заголовок статьи";
+    var date = VP.formatDate(post.created_at);
+
+    els.cardPreview.innerHTML =
+      '<article class="card card--preview">' +
+        '<div class="card__media">' + VP.coverMarkup(post, { className: "media--card" }) + "</div>" +
+        '<div class="card__body">' +
+          '<div class="card__preview-badges">' +
+            (post.status === "draft"
+              ? '<span class="admin-status admin-status--draft">Черновик</span>'
+              : '<span class="admin-status admin-status--published">Опубликовано</span>') +
+            (post.is_featured ? '<span class="admin-featured-badge">Главная</span>' : "") +
+          "</div>" +
+          '<span class="tag">' + VP.escapeHtml(category.label) + "</span>" +
+          '<h3 class="card__title">' + VP.escapeHtml(title) + "</h3>" +
+          (post.excerpt ? '<p class="card__excerpt">' + VP.escapeHtml(post.excerpt) + "</p>" : "") +
+          '<div class="card__date"><time datetime="' + VP.escapeHtml(VP.toIsoDate(post.created_at)) + '">' +
+            VP.escapeHtml(date) + "</time><span>" + VP.escapeHtml(VP.getReadingTime(post.content, true)) + "</span></div>" +
+        "</div>" +
+      "</article>";
+  }
+
+  function updatePostPreview() {
+    if (!els.postPreview) return;
+
+    var post = editorDraftPost();
+    var category = VP.getCategory(post.category);
+    var content = String(post.content || "").trim();
+    var body = content
+      ? VP.renderMarkdown(content)
+      : '<p class="field-hint">Начните печатать — здесь появится готовая статья.</p>';
+
+    els.postPreview.innerHTML =
+      '<article class="article-preview">' +
+        '<div class="article-preview__head">' +
+          '<div class="card__preview-badges">' +
+            (post.status === "draft"
+              ? '<span class="admin-status admin-status--draft">Черновик</span>'
+              : '<span class="admin-status admin-status--published">Опубликовано</span>') +
+            (post.is_featured ? '<span class="admin-featured-badge">Главная</span>' : "") +
+          "</div>" +
+          '<span class="tag">' + VP.escapeHtml(category.label) + "</span>" +
+          '<h1 class="article-preview__title">' + VP.escapeHtml(post.title || "Заголовок статьи") + "</h1>" +
+          (post.excerpt ? '<p class="article-dek">' + VP.escapeHtml(post.excerpt) + "</p>" : "") +
+          '<div class="article-meta"><time datetime="' + VP.escapeHtml(VP.toIsoDate(post.created_at)) + '">' +
+            VP.escapeHtml(VP.formatDate(post.created_at)) + "</time><span>" +
+            VP.escapeHtml(VP.getReadingTime(post.content, true)) + "</span></div>" +
+        "</div>" +
+        '<div class="article-preview__cover">' + VP.coverMarkup(post, { eager: true }) + "</div>" +
+        '<div class="article-body admin-preview">' + body + "</div>" +
+      "</article>";
+  }
+
+  function updatePreviews() {
+    renderCoverPreview();
+    updateCardPreview();
+    if (!els.postPreviewWrap.hidden) updatePostPreview();
   }
 
   function setCover(url) {
     els.coverUrl.value = url || "";
-    els.coverPreviewEmpty.textContent = "Без обложки";
-
-    if (url) {
-      els.coverPreviewImg.src = url;
-      els.coverPreviewImg.hidden = false;
-      els.coverPreviewEmpty.hidden = true;
-      els.coverRemoveBtn.hidden = false;
-    } else {
-      els.coverPreviewImg.removeAttribute("src");
-      els.coverPreviewImg.hidden = true;
-      els.coverPreviewEmpty.hidden = false;
-      els.coverRemoveBtn.hidden = true;
-    }
+    els.coverRemoveBtn.hidden = !url;
+    renderCoverPreview();
+    updateCardPreview();
   }
 
   function setSaving(isSaving) {
@@ -541,9 +722,13 @@
     els.postFeatured.checked = Boolean(post && post.is_featured);
     els.deletePostBtn.hidden = !post;
 
+    setEditorStatus(post && post.status === "draft" ? "draft" : "published");
+    state.coverVariant = VP.normalizeCoverVariant(post ? post.cover_variant : "default");
     setCover(post ? post.cover_url || "" : "");
+    setCoverVariant(state.coverVariant);
     updateExcerptCounter();
     resetPreview();
+    updatePreviews();
     showPanel("editor");
     window.scrollTo({ top: 0, behavior: "auto" });
     window.setTimeout(function () {
@@ -574,7 +759,29 @@
     state.editorDirty = true;
   });
 
-  els.postExcerpt.addEventListener("input", updateExcerptCounter);
+  els.postExcerpt.addEventListener("input", function () {
+    updateExcerptCounter();
+    updatePreviews();
+  });
+
+  els.postTitle.addEventListener("input", updatePreviews);
+
+  els.postCategory.addEventListener("change", function () {
+    state.editorDirty = true;
+    updatePreviews();
+  });
+
+  document.querySelectorAll('input[name="postStatus"]').forEach(function (radio) {
+    radio.addEventListener("change", function () {
+      if (radio.checked) {
+        state.editorStatus = radio.value;
+        state.editorDirty = true;
+        updatePreviews();
+      }
+    });
+  });
+
+  els.postFeatured.addEventListener("change", updatePreviews);
 
   function postPayload() {
     var title = els.postTitle.value.trim();
@@ -622,8 +829,26 @@
       excerpt: excerpt,
       content: content,
       cover_url: els.coverUrl.value.trim() || null,
+      cover_variant: state.coverVariant,
+      status: getEditorStatus(),
       is_featured: els.postFeatured.checked
     };
+  }
+
+  async function performPostSave(payload) {
+    if (state.editingId) {
+      return await supabase
+        .from("posts")
+        .update(payload)
+        .eq("id", state.editingId)
+        .select("id")
+        .maybeSingle();
+    }
+    return await supabase
+      .from("posts")
+      .insert(payload)
+      .select("id")
+      .maybeSingle();
   }
 
   async function savePost() {
@@ -635,27 +860,27 @@
     els.editorSaveStatus.textContent = "Идёт сохранение…";
 
     try {
-      var response;
-      if (state.editingId) {
-        response = await supabase
-          .from("posts")
-          .update(payload)
-          .eq("id", state.editingId)
-          .select("id")
-          .maybeSingle();
-      } else {
-        response = await supabase
-          .from("posts")
-          .insert(payload)
-          .select("id")
-          .maybeSingle();
+      var response = await performPostSave(payload);
+      var usedLegacy = false;
+
+      // Если миграция ещё не применена, сохраняем без новых колонок.
+      if (response.error && VP.isMissingColumnError && VP.isMissingColumnError(response.error)) {
+        var legacyPayload = Object.assign({}, payload);
+        delete legacyPayload.status;
+        delete legacyPayload.cover_variant;
+
+        var retry = await performPostSave(legacyPayload);
+        if (!retry.error) {
+          response = retry;
+          usedLegacy = true;
+        }
       }
 
       if (response.error) throw response.error;
 
       var savedId = response.data ? response.data.id : state.editingId;
 
-      if (payload.is_featured && savedId) {
+      if (payload.status === "published" && payload.is_featured && savedId) {
         var clearOthers = await supabase
           .from("posts")
           .update({ is_featured: false })
@@ -667,9 +892,17 @@
       }
 
       var wasEditing = Boolean(state.editingId);
+      var isDraft = payload.status === "draft";
       state.editorDirty = false;
       state.editingId = null;
-      toast(wasEditing ? "Статья обновлена." : "Статья опубликована.");
+
+      if (usedLegacy) {
+        toast("Сохранено. Чтобы включить статусы и стили обложек, выполните sql/migration_v2.sql.", true);
+      } else if (wasEditing) {
+        toast(isDraft ? "Черновик обновлён." : "Статья обновлена.");
+      } else {
+        toast(isDraft ? "Черновик создан." : "Статья опубликована.");
+      }
 
       try {
         await fetchPosts();
@@ -802,7 +1035,10 @@
 
     var action = button.getAttribute("data-action");
     if (action === "h2") prefixLines("## ");
+    else if (action === "ol") prefixLines("1. ");
+    else if (action === "check") prefixLines("- [ ] ");
     else if (action === "quote") prefixLines("> ");
+    else if (action === "callout") insertAtCursor(els.postContent, "\n\n> **Важно:** \n\n");
     else if (action === "list") prefixLines("- ");
     else if (action === "bold") wrapSelection("**", "**", "текст");
     else if (action === "italic") wrapSelection("_", "_", "текст");
@@ -810,18 +1046,18 @@
   });
 
   els.postContent.addEventListener("input", function () {
-    if (els.postPreviewWrap.hidden) return;
     window.clearTimeout(postPreviewTimer);
     postPreviewTimer = window.setTimeout(function () {
-      renderPreviewInto(els.postPreview, els.postContent.value);
+      updateCardPreview();
+      if (!els.postPreviewWrap.hidden) updatePostPreview();
     }, 180);
   });
 
   els.previewToggleBtn.addEventListener("click", function () {
     var willShow = els.postPreviewWrap.hidden;
     els.postPreviewWrap.hidden = !willShow;
-    els.previewToggleBtn.textContent = willShow ? "Скрыть предпросмотр" : "Показать предпросмотр";
-    if (willShow) renderPreviewInto(els.postPreview, els.postContent.value);
+    els.previewToggleBtn.textContent = willShow ? "Скрыть предпросмотр статьи" : "Показать предпросмотр статьи";
+    if (willShow) updatePostPreview();
   });
 
   /* ---------- Загрузка изображений ---------- */
@@ -840,22 +1076,43 @@
     return true;
   }
 
-  function extensionFor(file) {
-    var match = /\.([a-zA-Z0-9]+)$/.exec(file.name || "");
-    var extension = match ? match[1].toLowerCase() : "jpg";
-    if (extension === "jpeg") extension = "jpg";
-    if (!/^[a-z0-9]{2,5}$/.test(extension)) extension = "jpg";
-    return extension;
+  function compressImage(file) {
+    var MAX_W = 1400;
+    var QUALITY = 0.82;
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var img = new Image();
+        img.onload = function () {
+          var w = img.naturalWidth;
+          var h = img.naturalHeight;
+          if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob(function (blob) {
+            if (!blob) { reject(new Error('Не удалось сжать изображение')); return; }
+            resolve(blob);
+          }, 'image/webp', QUALITY);
+        };
+        img.onerror = function () { reject(new Error('Не удалось загрузить изображение')); };
+        img.src = e.target.result;
+      };
+      reader.onerror = function () { reject(new Error('Не удалось прочитать файл')); };
+      reader.readAsDataURL(file);
+    });
   }
 
   async function uploadImage(file, folder) {
     if (!supabase) throw new Error("Supabase не подключён.");
     var bucket = VP.config.MEDIA_BUCKET;
-    var path = folder + "/" + Date.now() + "-" + randomId() + "." + extensionFor(file);
+    var blob = await compressImage(file);
+    var path = folder + "/" + Date.now() + "-" + randomId() + ".webp";
 
-    var response = await supabase.storage.from(bucket).upload(path, file, {
+    var response = await supabase.storage.from(bucket).upload(path, blob, {
       cacheControl: "31536000",
-      contentType: file.type,
+      contentType: "image/webp",
       upsert: false
     });
 
@@ -867,14 +1124,6 @@
     }
     return publicUrl.data.publicUrl;
   }
-
-  els.coverPreviewImg.addEventListener("error", function () {
-    if (!els.coverPreviewImg.hidden) {
-      els.coverPreviewImg.hidden = true;
-      els.coverPreviewEmpty.hidden = false;
-      els.coverPreviewEmpty.textContent = "Не удалось показать обложку";
-    }
-  });
 
   els.coverChooseBtn.addEventListener("click", function () {
     els.coverInput.click();
@@ -972,6 +1221,175 @@
       els.inlineImageInput.value = "";
     }
   });
+
+  /* ---------- Предложенные темы ---------- */
+
+  function suggestionRowMarkup(suggestion) {
+    var category = suggestion.category ? VP.getCategory(suggestion.category) : null;
+    var created = suggestion.created_at
+      ? '<time datetime="' + VP.escapeHtml(VP.toIsoDate(suggestion.created_at)) + '">' +
+        VP.escapeHtml(VP.formatDate(suggestion.created_at)) + "</time>"
+      : "";
+
+    return (
+      '<article class="suggestion">' +
+        '<div class="suggestion__meta">' +
+          '<span class="tag">' + VP.escapeHtml(category ? category.label : "Без рубрики") + "</span>" +
+          created +
+        "</div>" +
+        '<p class="suggestion__topic">' + VP.escapeHtml(suggestion.topic || "") + "</p>" +
+        (suggestion.contact
+          ? '<p class="suggestion__contact">Контакт: ' + VP.escapeHtml(suggestion.contact) + "</p>"
+          : "") +
+        '<div class="suggestion__actions">' +
+          '<button class="btn btn--secondary btn--small" type="button" data-suggest-draft="' +
+            VP.escapeHtml(suggestion.id) + '">Создать черновик</button>' +
+          '<button class="text-btn text-btn--danger" type="button" data-suggest-delete="' +
+            VP.escapeHtml(suggestion.id) + '">Удалить</button>' +
+        "</div>" +
+      "</article>"
+    );
+  }
+
+  function renderSuggestions() {
+    var count = state.suggestions.length;
+    els.suggestionsCount.textContent = count
+      ? count + " " + VP.plural(count, ["заявка", "заявки", "заявок"]) + " от читателей"
+      : "Заявок пока нет";
+
+    if (!count) {
+      els.suggestionsList.innerHTML =
+        '<div class="admin-empty"><p>Пока никто не предложил тему. Форма есть в подвале сайта.</p></div>';
+      return;
+    }
+
+    els.suggestionsList.innerHTML = state.suggestions.map(suggestionRowMarkup).join("");
+  }
+
+  async function fetchSuggestions() {
+    if (!supabase) return;
+
+    state.suggestionsLoading = true;
+    els.suggestionsCount.textContent = "Загружаем заявки…";
+
+    try {
+      var response = await supabase
+        .from("topic_suggestions")
+        .select("id,created_at,category,topic,contact")
+        .order("created_at", { ascending: false });
+
+      if (response.error) throw response.error;
+
+      state.suggestions = Array.isArray(response.data) ? response.data : [];
+      state.suggestionsLoaded = true;
+      renderSuggestions();
+    } catch (error) {
+      console.error("Ошибка загрузки предложенных тем:", error);
+      state.suggestionsLoaded = false;
+      els.suggestionsCount.textContent = "";
+      els.suggestionsList.innerHTML =
+        '<div class="admin-empty">' +
+          "<p>" + VP.escapeHtml(apiErrorMessage(error)) + "</p>" +
+          '<button class="btn btn--secondary" type="button" data-reload-suggestions>Повторить</button>' +
+        "</div>";
+    } finally {
+      state.suggestionsLoading = false;
+    }
+  }
+
+  function showSuggestions() {
+    showPanel("suggestions");
+    if (state.suggestionsLoaded || state.suggestionsLoading) return;
+    fetchSuggestions();
+  }
+
+  function createDraftFromSuggestion(suggestion) {
+    var topic = String(suggestion.topic || "").trim();
+    var categoryExists = VP.categories.some(function (category) {
+      return category.id === suggestion.category;
+    });
+
+    openEditor(null);
+
+    els.postTitle.value = topic.slice(0, 200);
+    els.postCategory.value = categoryExists ? suggestion.category : "money";
+    setEditorStatus("draft");
+    els.postExcerpt.value = "";
+    els.postContent.value = topic ? "> " + topic.replace(/\s+/g, " ") + "\n\n" : "";
+
+    updateExcerptCounter();
+    state.editorDirty = true;
+    updatePreviews();
+    toast("Тема подставлена в новый черновик.");
+
+    window.setTimeout(function () {
+      els.postTitle.focus();
+      els.postTitle.select();
+    }, 60);
+  }
+
+  async function deleteSuggestion(suggestion) {
+    if (!supabase) return;
+
+    var confirmed = await askConfirm({
+      title: "Удалить заявку?",
+      text: "«" + (suggestion.topic || "Без темы") + "» исчезнет из списка предложенных тем.",
+      confirmLabel: "Удалить"
+    });
+    if (!confirmed) return;
+
+    try {
+      var response = await supabase
+        .from("topic_suggestions")
+        .delete()
+        .eq("id", suggestion.id);
+
+      if (response.error) throw response.error;
+
+      state.suggestions = state.suggestions.filter(function (item) {
+        return item.id !== suggestion.id;
+      });
+      renderSuggestions();
+      toast("Заявка удалена.");
+    } catch (error) {
+      console.error("Ошибка удаления заявки:", error);
+      toast(apiErrorMessage(error), true);
+    }
+  }
+
+  if (els.suggestionsList) {
+    els.suggestionsList.addEventListener("click", function (event) {
+      var reload = event.target.closest("[data-reload-suggestions]");
+      if (reload) {
+        fetchSuggestions();
+        return;
+      }
+
+      var draftTrigger = event.target.closest("[data-suggest-draft]");
+      if (draftTrigger) {
+        var forDraft = state.suggestions.find(function (item) {
+          return item.id === draftTrigger.getAttribute("data-suggest-draft");
+        });
+        if (forDraft) createDraftFromSuggestion(forDraft);
+        return;
+      }
+
+      var deleteTrigger = event.target.closest("[data-suggest-delete]");
+      if (deleteTrigger) {
+        var forDelete = state.suggestions.find(function (item) {
+          return item.id === deleteTrigger.getAttribute("data-suggest-delete");
+        });
+        if (forDelete) deleteSuggestion(forDelete);
+      }
+    });
+  }
+
+  if (els.reloadSuggestionsBtn) {
+    els.reloadSuggestionsBtn.addEventListener("click", function () {
+      state.suggestionsLoaded = false;
+      fetchSuggestions();
+    });
+  }
 
   /* ---------- Страница «О проекте» ---------- */
 
@@ -1075,6 +1493,8 @@
 
   /* ---------- Запуск ---------- */
 
+  renderCoverVariants();
+  setCoverVariant("default");
   setupConfiguration();
   showLogin();
   initAuth();

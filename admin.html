@@ -72,6 +72,7 @@
         <div id="adminWorkspace" hidden>
           <div class="admin-tabs" id="adminTabs" role="tablist" aria-label="Разделы панели">
             <button class="admin-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="postsPanel" data-tab="posts" id="tabPosts">Статьи</button>
+            <button class="admin-tab" type="button" role="tab" aria-selected="false" aria-controls="suggestionsPanel" data-tab="suggestions" id="tabSuggestions">Предложенные темы</button>
             <button class="admin-tab" type="button" role="tab" aria-selected="false" aria-controls="aboutPanel" data-tab="about" id="tabAbout">О проекте</button>
           </div>
 
@@ -81,9 +82,30 @@
                 <h1>Статьи</h1>
                 <p class="admin-sub" id="postsCount"></p>
               </div>
-              <button class="btn" id="newPostBtn" type="button">Новая статья</button>
+              <div class="admin-head-actions">
+                <label class="admin-filter" for="statusFilter">
+                  <span>Статус</span>
+                  <select class="field-input field-input--small" id="statusFilter">
+                    <option value="all">Все</option>
+                    <option value="published">Опубликованные</option>
+                    <option value="draft">Черновики</option>
+                  </select>
+                </label>
+                <button class="btn" id="newPostBtn" type="button">Новая статья</button>
+              </div>
             </div>
             <div class="posts-list" id="postsList"></div>
+          </section>
+
+          <section id="suggestionsPanel" role="tabpanel" aria-labelledby="tabSuggestions" hidden>
+            <div class="admin-page-head">
+              <div>
+                <h1>Предложенные темы</h1>
+                <p class="admin-sub" id="suggestionsCount">Заявки читателей из формы «Предложить тему».</p>
+              </div>
+              <button class="btn btn--secondary" type="button" id="reloadSuggestionsBtn">Обновить</button>
+            </div>
+            <div class="suggestions-list" id="suggestionsList"></div>
           </section>
 
           <section id="editorPanel" hidden>
@@ -122,12 +144,14 @@
                       <button type="button" data-action="h2" title="Подзаголовок">H2</button>
                       <button type="button" data-action="bold" title="Жирный текст"><strong>Ж</strong></button>
                       <button type="button" data-action="italic" title="Курсив"><em>К</em></button>
+                      <button type="button" data-action="ol" title="Нумерованный список">1. Список</button>
+                      <button type="button" data-action="check" title="Интерактивный чек-лист">Чек-лист</button>
                       <button type="button" data-action="quote" title="Цитата">Цитата</button>
-                      <button type="button" data-action="list" title="Список">Список</button>
+                      <button type="button" data-action="callout" title="Врезка">Врезка</button>
                       <button type="button" data-action="link" title="Ссылка">Ссылка</button>
                     </div>
                     <textarea class="editor-textarea" id="postContent" rows="18" required></textarea>
-                    <p class="field-hint">Разметка: <code>## подзаголовок</code>, <code>**жирный**</code>, <code>&gt; цитата</code>, <code>- список</code>.</p>
+                    <p class="field-hint">Разметка: <code>## подзаголовок</code>, <code>**жирный**</code>, <code>1. список</code>, <code>- [ ] чек-лист</code>, <code>&gt; цитата</code>.</p>
 
                     <div class="inline-upload">
                       <input type="file" id="inlineImageInput" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" hidden>
@@ -136,8 +160,8 @@
                     </div>
 
                     <div class="preview-block" id="postPreviewWrap" hidden>
-                      <p class="side-label">Предпросмотр</p>
-                      <div class="article-body admin-preview" id="postPreview"></div>
+                      <p class="side-label">Предпросмотр готовой статьи</p>
+                      <div id="postPreview"></div>
                     </div>
                   </div>
 
@@ -161,28 +185,46 @@
                         <option value="relationships">Отношения</option>
                       </select>
                     </div>
+                    <div class="field">
+                      <span class="field-label">Статус</span>
+                      <div class="status-switch" role="radiogroup" aria-label="Статус материала">
+                        <label>
+                          <input type="radio" name="postStatus" value="draft">
+                          <span>Черновик</span>
+                        </label>
+                        <label>
+                          <input type="radio" name="postStatus" value="published" checked>
+                          <span>Опубликовано</span>
+                        </label>
+                      </div>
+                    </div>
                     <label class="checkbox">
                       <input type="checkbox" id="postFeatured">
-                      <span>Главный материал</span>
+                      <span>Закрепить в главном блоке</span>
                     </label>
-                    <p class="field-hint">Показывается крупно на главной странице.</p>
+                    <p class="field-hint">Крупная карточка наверху главной. Показывается только для опубликованных материалов.</p>
                   </div>
 
                   <div class="side-box">
                     <p class="side-label">Обложка</p>
-                    <div class="cover-preview" id="coverPreview">
-                      <div class="cover-preview__empty" id="coverPreviewEmpty">Без обложки</div>
-                      <img id="coverPreviewImg" alt="" hidden>
-                    </div>
+                    <div class="cover-preview" id="coverPreview"></div>
                     <input type="file" id="coverInput" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" hidden>
                     <button class="btn btn--secondary btn--block btn--small" id="coverChooseBtn" type="button">Загрузить обложку</button>
                     <button class="text-btn text-btn--muted" id="coverRemoveBtn" type="button" hidden>Убрать обложку</button>
                     <p class="field-status" id="coverStatus"></p>
+                    <p class="side-label side-label--spaced">Стиль обложки</p>
+                    <div class="cover-variants" id="coverVariants" role="radiogroup" aria-label="Стиль обложки"></div>
+                    <p class="field-hint">Стиль виден, если не загружена своя картинка.</p>
                     <input type="hidden" id="coverUrl">
                   </div>
 
+                  <div class="side-box side-box--preview">
+                    <p class="side-label">Предпросмотр карточки</p>
+                    <div id="cardPreview"></div>
+                  </div>
+
                   <div class="side-box">
-                    <button class="text-btn" id="previewToggleBtn" type="button">Показать предпросмотр</button>
+                    <button class="text-btn" id="previewToggleBtn" type="button">Показать предпросмотр статьи</button>
                   </div>
                 </aside>
               </div>
