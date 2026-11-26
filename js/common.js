@@ -36,6 +36,186 @@
     }
   }
 
+  /* ---------- Версия для слабовидящих ---------- */
+
+  var A11Y_STORAGE_KEY = "vp_a11y";
+  var A11Y_DEFAULTS = {
+    enabled: false,
+    font: "100",
+    scheme: "normal",
+    spacing: "normal",
+    images: "show"
+  };
+
+  function a11yDefaults() {
+    return Object.assign({}, A11Y_DEFAULTS);
+  }
+
+  function a11yOption(value, allowed, fallback) {
+    var string = String(value == null ? "" : value);
+    return allowed.indexOf(string) === -1 ? fallback : string;
+  }
+
+  function readA11yState() {
+    var state = a11yDefaults();
+    var raw;
+    try {
+      raw = window.localStorage.getItem(A11Y_STORAGE_KEY);
+    } catch (error) {
+      return state;
+    }
+    if (!raw) return state;
+
+    var parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      return state;
+    }
+    if (!parsed || typeof parsed !== "object") return state;
+
+    state.enabled = parsed.enabled === true;
+    state.font = a11yOption(parsed.font, ["100", "125", "150"], state.font);
+    state.scheme = a11yOption(parsed.scheme, ["normal", "dark", "blue"], state.scheme);
+    state.spacing = a11yOption(parsed.spacing, ["normal", "wide"], state.spacing);
+    state.images = a11yOption(parsed.images, ["show", "hidden"], state.images);
+    return state;
+  }
+
+  function storeA11yState(state) {
+    try {
+      window.localStorage.setItem(A11Y_STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+      console.warn("Не удалось сохранить настройки доступности:", error);
+    }
+  }
+
+  function setRootData(name, value) {
+    var root = document.documentElement;
+    if (value) root.setAttribute(name, value);
+    else root.removeAttribute(name);
+  }
+
+  function a11yGroup(name, label, options) {
+    var buttons = options.map(function (option) {
+      return '<button type="button" data-vp-' + name + '="' + option[0] +
+        '" aria-pressed="false">' + option[1] + "</button>";
+    });
+
+    return (
+      '<div class="vp-a11y-group" role="group" aria-label="' + label + '">' +
+        '<span class="vp-a11y-group__label">' + label + "</span>" +
+        buttons.join("") +
+      "</div>"
+    );
+  }
+
+  function buildA11yPanel() {
+    var existing = document.getElementById("vpA11yPanel");
+    if (existing) return existing;
+
+    var panel = document.createElement("div");
+    panel.className = "vp-a11y-panel";
+    panel.id = "vpA11yPanel";
+    panel.hidden = true;
+    panel.setAttribute("role", "region");
+    panel.setAttribute("aria-label", "Настройки версии для слабовидящих");
+    panel.innerHTML =
+      '<div class="vp-a11y-panel__inner">' +
+        '<strong class="vp-a11y-panel__title">Версия для слабовидящих</strong>' +
+        a11yGroup("font", "Размер шрифта", [
+          ["100", "100%"], ["125", "125%"], ["150", "150%"]
+        ]) +
+        a11yGroup("scheme", "Цветовая схема", [
+          ["normal", "Обычная"], ["dark", "Тёмная"], ["blue", "Голубая"]
+        ]) +
+        a11yGroup("spacing", "Межбуквенный интервал", [
+          ["normal", "Стандартный"], ["wide", "Увеличенный"]
+        ]) +
+        a11yGroup("images", "Изображения", [
+          ["show", "Показывать"], ["hidden", "Скрывать"]
+        ]) +
+        '<button class="vp-a11y-panel__reset" type="button" data-vp-a11y-reset>Обычная версия</button>' +
+      "</div>";
+
+    document.body.insertBefore(panel, document.body.firstChild);
+    return panel;
+  }
+
+  function syncA11yPressed(panel, name, value) {
+    var attribute = "data-vp-" + name;
+    panel.querySelectorAll("[" + attribute + "]").forEach(function (button) {
+      button.setAttribute("aria-pressed", button.getAttribute(attribute) === value ? "true" : "false");
+    });
+  }
+
+  function applyA11yState(state, panel, toggle) {
+    var root = document.documentElement;
+    root.classList.toggle("vp-a11y", state.enabled);
+    setRootData("data-vp-a11y", state.enabled ? "on" : "");
+    setRootData("data-vp-font", state.font);
+    setRootData("data-vp-scheme", state.scheme === "normal" ? "" : state.scheme);
+    setRootData("data-vp-spacing", state.spacing === "wide" ? "wide" : "");
+    setRootData("data-vp-images", state.images === "hidden" ? "hidden" : "");
+
+    if (panel) {
+      panel.hidden = !state.enabled;
+      syncA11yPressed(panel, "font", state.font);
+      syncA11yPressed(panel, "scheme", state.scheme);
+      syncA11yPressed(panel, "spacing", state.spacing);
+      syncA11yPressed(panel, "images", state.images);
+    }
+    if (toggle) {
+      toggle.setAttribute("aria-pressed", state.enabled ? "true" : "false");
+    }
+  }
+
+  function initAccessibility() {
+    var toggle = document.querySelector("[data-vp-a11y-toggle]");
+    if (!toggle || !document.body) return;
+
+    var panel = buildA11yPanel();
+    var state = readA11yState();
+    applyA11yState(state, panel, toggle);
+
+    toggle.addEventListener("click", function () {
+      if (state.enabled) {
+        state = a11yDefaults();
+      } else {
+        state.enabled = true;
+      }
+      storeA11yState(state);
+      applyA11yState(state, panel, toggle);
+    });
+
+    panel.addEventListener("click", function (event) {
+      var target = event.target;
+      if (!target || typeof target.closest !== "function") return;
+      var button = target.closest("button");
+      if (!button || !panel.contains(button)) return;
+
+      if (button.hasAttribute("data-vp-a11y-reset")) {
+        state = a11yDefaults();
+        storeA11yState(state);
+        applyA11yState(state, panel, toggle);
+        return;
+      }
+
+      var keys = ["font", "scheme", "spacing", "images"];
+      for (var index = 0; index < keys.length; index += 1) {
+        var key = keys[index];
+        var attribute = "data-vp-" + key;
+        if (!button.hasAttribute(attribute)) continue;
+        state[key] = button.getAttribute(attribute);
+        storeA11yState(state);
+        applyA11yState(state, panel, toggle);
+        return;
+      }
+    });
+  }
+
+  initAccessibility();
+
   var CATEGORIES = [
     { id: "money", label: "Деньги", description: "Про бюджет, траты и общие финансовые цели." },
     { id: "home", label: "Быт", description: "Про дом, порядок и договорённости, которые облегчают жизнь." },
@@ -1438,15 +1618,19 @@
     });
   }
 
-  readCachedCategories();
-  seedCategoryFromLocation();
-  bindCategoryNavClicks();
-  syncCategoryNav();
-  initChrome();
-  initTopicSuggestForm();
-  syncSuggestCategories();
+  // Страницы, где common.js подключён только для доступности:
+  // без этой метки не добавляем рубрики, форму предложек и прочий сайтовый chrome.
+  if (!document.documentElement.hasAttribute("data-vp-a11y-only")) {
+    readCachedCategories();
+    seedCategoryFromLocation();
+    bindCategoryNavClicks();
+    syncCategoryNav();
+    initChrome();
+    initTopicSuggestForm();
+    syncSuggestCategories();
 
-  if (client) fetchCategories();
+    if (client) fetchCategories();
+  }
 
   window.VP = {
     config: config,
