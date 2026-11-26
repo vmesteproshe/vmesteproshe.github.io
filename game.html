@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru" data-vp-a11y-only>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Игра: советник Джейсона и Люсии — Вместе проще</title>
+  <meta name="description" content="Восемь сцен о деньгах, быте и отношениях Джейсона Дюваля и Люсии Каминос. Давайте советы и смотрите, что получится.">
+  <meta name="theme-color" content="#2B1055">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Вместе проще">
+  <meta property="og:title" content="Игра: советник Джейсона и Люсии — Вместе проще">
+  <meta property="og:description" content="Восемь сцен о деньгах, быте и отношениях в стиле Леониды. Ваши советы меняют доверие, бюджет и спокойствие пары.">
+  <meta property="og:image" content="https://vmesteproshe.github.io/assets/og-cover.png">
+  <meta property="og:url" content="https://vmesteproshe.github.io/game.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="js/common.js"></script>
+  <script defer src="js/game.js"></script>
+</head>
+<body id="top" class="game-page">
+  <a class="skip-link" href="#main">Перейти к содержанию</a>
+
+  <header class="site-header">
+    <div class="container header-main">
+      <a class="brand" href="./" aria-label="Вместе проще — на главную">
+        <span class="brand__name">Вместе проще</span>
+        <span class="brand__descriptor">онлайн-гид<br>для молодых семей</span>
+      </a>
+      <div class="header-actions">
+        <button class="a11y-toggle" type="button" data-vp-a11y-toggle aria-label="Версия для слабовидящих" aria-pressed="false" title="Версия для слабовидящих">
+          <svg class="a11y-toggle__icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M2 12c2.2-3.6 5.8-6 10-6s7.8 2.4 10 6c-2.2 3.6-5.8 6-10 6s-7.8-2.4-10-6Z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <span class="a11y-toggle__label">Версия для слабовидящих</span>
+        </button>
+      </div>
+    </div>
+    <nav class="container rubrics" aria-label="Рубрики">
+      <a href="./">Все</a>
+      <a href="./?cat=money">Деньги</a>
+      <a href="./?cat=home">Быт</a>
+      <a href="./?cat=docs">Документы</a>
+      <a href="./?cat=relationships">Отношения</a>
+      <a class="rubrics__calculator" href="calculator.html">Калькулятор</a>
+      <a class="rubrics__templates" href="templates.html">Шаблоны</a>
+      <a class="rubrics__game" href="game.html" aria-current="page">Игра</a>
+      <a class="rubrics__about" href="about.html">О проекте</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <div class="container">
+      <header class="game-header">
+        <p class="eyebrow">Интерактив</p>
+        <h1 class="game-title" id="gameTitle">Советник Джейсона и Люсии</h1>
+        <p class="game-lead">Восемь обычных ситуаций в Вайс-Сити. Вы — их общий друг: подскажите, как поступить, и посмотрите, что изменится с доверием, бюджетом и спокойствием.</p>
+        <p class="game-meta">8 сцен · Леонида · Без регистрации</p>
+      </header>
+
+      <section class="game-card" id="gameApp" aria-labelledby="gameTitle">
+        <svg class="game-skyline" viewBox="0 0 1200 260" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <g fill="#0a0518">
+            <path d="M0 216h1200v44H0z"></path>
+            <path d="M0 164h34v52H0zm42-30h46v82H42zm54 18h30v64H96zm38-46h52v110h-52zm60 28h38v82h-38zm46-18h44v100h-44zm52 36h30v64h-30zm38-72h58v136h-58zm66 44h36v92h-36zm44-28h48v120h-48zm56 40h32v80h-32zm40-64h54v144h-54zm62 28h36v116h-36zm44 20h50v96h-50zm58-44h40v140h-40zm48 32h34v108h-34zm42-52h56v160h-56zm64 36h38v124h-38zm46-24h48v148h-48zm56 48h32v100h-32zm40-72h58v172h-58zm66 28h36v144h-36zm44 20h52v124h-52zm60-60h40v184h-40zm48 36h34v148h-34zm42-40h56v188h-56zm64 52h40v136h-40zm48-28h46v164h-46zm54 40h32v124h-32zm40-64h60v188h-60zm68 32h36v156h-36zm44 24h48v132h-48zm56-48h34v180h-34zm42 40h56v140h-56zm64-28h38v168h-38zm46 44h50v124h-50zm58-72h36v196h-36zm44 48h46v148h-46zm54-36h34v184h-34zm42 56h58v128h-58zm66-44h36v172h-36zm44 28h48v144h-48zm56-64h34v208h-34zm42 48h56v160h-56zm64-40h38v200h-38zm46 60h50v140h-50zm58-80h36v220h-36zm44 56h48v164h-48zm56-48h34v212h-34zm42 60h58v152h-58zm66-36h36v188h-36z"></path>
+          </g>
+          <g fill="#ffcf9b" opacity="0.8">
+            <path d="M56 150h8v10h-8zm20 0h8v10h-8zm20 0h8v10h-8zm96-18h8v10h-8zm20 0h8v10h-8zm98-30h8v10h-8zm20 0h8v10h-8zm20 0h8v10h-8zm108 20h8v10h-8zm20 0h8v10h-8zm104-18h8v10h-8zm20 0h8v10h-8zm104 22h8v10h-8zm20 0h8v10h-8zm100-28h8v10h-8zm20 0h8v10h-8zm98 18h8v10h-8zm20 0h8v10h-8zm104-24h8v10h-8zm20 0h8v10h-8zm98 30h8v10h-8zm20 0h8v10h-8zm104-20h8v10h-8zm20 0h8v10h-8z"></path>
+          </g>
+          <g fill="#0a0518">
+            <path d="M104 260c11-52 12-104 4-154 12 46 18 102 20 154z"></path>
+            <path d="M1084 260c-12-50-13-100-5-148-12 44-18 98-20 148z"></path>
+          </g>
+          <g fill="none" stroke="#0a0518" stroke-width="9" stroke-linecap="round">
+            <path d="M110 110c-38-25-82-29-122-13"></path>
+            <path d="M110 110c-25-35-58-51-96-46"></path>
+            <path d="M110 110c3-40-13-70-40-91"></path>
+            <path d="M110 110c28-33 64-48 104-42"></path>
+            <path d="M110 110c38-20 80-18 116 3"></path>
+            <path d="M110 110c20 31 26 66 18 100"></path>
+            <path d="M1080 116c-36-24-78-26-116-9"></path>
+            <path d="M1080 116c-24-34-56-50-92-45"></path>
+            <path d="M1080 116c-2-39 14-68 41-88"></path>
+            <path d="M1080 116c28-32 62-46 100-39"></path>
+            <path d="M1080 116c37-19 77-16 112 5"></path>
+            <path d="M1080 116c19 30 24 63 15 95"></path>
+          </g>
+        </svg>
+
+        <div class="game-content">
+          <div class="game-topline">
+            <div class="game-stats" role="group" aria-label="Показатели миссии">
+              <div class="game-stat">
+                <span class="game-stat__label">Доверие</span>
+                <span class="game-stat__value" data-game-trust>50%</span>
+                <div class="game-stat__bar" role="meter" aria-label="Доверие" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+                  <span class="game-stat__fill" data-game-trust-bar style="width: 50%"></span>
+                </div>
+              </div>
+              <div class="game-stat game-stat--budget">
+                <span class="game-stat__label">Бюджет</span>
+                <span class="game-stat__value" data-game-budget>50 000 ₽</span>
+                <div class="game-stat__bar" role="meter" aria-label="Бюджет" aria-valuemin="-100000" aria-valuemax="50000" aria-valuenow="50000">
+                  <span class="game-stat__fill" data-game-budget-bar style="width: 100%"></span>
+                </div>
+              </div>
+              <div class="game-stat">
+                <span class="game-stat__label">Спокойствие</span>
+                <span class="game-stat__value" data-game-calm>50%</span>
+                <div class="game-stat__bar" role="meter" aria-label="Спокойствие" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+                  <span class="game-stat__fill" data-game-calm-bar style="width: 50%"></span>
+                </div>
+              </div>
+            </div>
+            <p class="game-scene-count" data-game-counter>Сцена 1 / 8</p>
+          </div>
+
+          <div class="game-play" data-game-play>
+            <div class="game-chat" data-game-chat aria-live="polite" aria-relevant="additions"></div>
+            <div class="game-advice" data-game-advice hidden>
+              <p class="game-advice__title">Ваш совет — от имени общего друга</p>
+              <div class="game-options" data-game-options></div>
+            </div>
+          </div>
+
+          <section class="game-ending" data-game-ending aria-labelledby="gameEndingTitle" hidden>
+            <p class="game-ending__eyebrow">Миссия завершена</p>
+            <h2 class="game-ending__title" id="gameEndingTitle" tabindex="-1"></h2>
+            <p class="game-ending__text" data-game-ending-text></p>
+            <ul class="game-ending__stats" data-game-ending-stats></ul>
+            <div class="game-ending__actions">
+              <button class="btn" type="button" data-game-restart>Сыграть ещё раз</button>
+              <button class="btn btn--secondary" type="button" data-game-copy>Скопировать результат</button>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-main">
+      <div class="footer-brand">
+        <a class="brand brand--footer" href="./" aria-label="Вместе проще — на главную">
+          <span class="brand__name">Вместе проще</span>
+        </a>
+        <p>Короткие статьи о совместной жизни.<br>Без советов «просто будь терпимее».</p>
+      </div>
+      <nav class="footer-nav" aria-label="Рубрики в подвале">
+        <p class="footer-title">Рубрики</p>
+        <a href="./?cat=money">Деньги</a>
+        <a href="./?cat=home">Быт</a>
+        <a href="./?cat=docs">Документы</a>
+        <a href="./?cat=relationships">Отношения</a>
+      </nav>
+      <nav class="footer-nav" aria-label="О проекте">
+        <p class="footer-title">Проект</p>
+        <a href="about.html">О проекте</a>
+        <a href="./">Все материалы</a>
+        <a href="#top">Наверх</a>
+      </nav>
+    </div>
+    <div class="container footer-bottom">
+      <p>© 2026 «Вместе проще»</p>
+      <p>Онлайн-гид для молодых семей</p>
+    </div>
+  </footer>
+</body>
+</html>
