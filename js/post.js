@@ -62,41 +62,16 @@
     );
   }
 
-  function cardMarkup(post) {
-    var category = window.VP.getCategory(post.category);
-    var url = window.VP.postUrl(post.id);
-    var date = post.created_at
-      ? '<time datetime="' + window.VP.escapeHtml(window.VP.toIsoDate(post.created_at)) + '">' +
-        window.VP.escapeHtml(window.VP.formatDate(post.created_at)) + "</time>"
-      : "";
-    var reading = window.VP.getReadingTime(post.content, true);
-    var author = post.author
-      ? "<span>" + window.VP.escapeHtml(post.author) + "</span>"
-      : "";
-    return (
-      '<article class="card">' +
-        '<a class="card__media" href="' + window.VP.escapeHtml(url) + '" tabindex="-1" aria-hidden="true">' +
-          window.VP.coverMarkup(post, { className: "media--card" }) +
-        "</a>" +
-        '<div class="card__body">' +
-          '<a class="tag" href="' + window.VP.escapeHtml(window.VP.categoryUrl(category.id)) + '">' +
-            window.VP.escapeHtml(category.label) + "</a>" +
-          '<h2 class="card__title"><a href="' + window.VP.escapeHtml(url) + '">' +
-            window.VP.escapeHtml(post.title || "Без заголовка") + "</a></h2>" +
-          (post.excerpt ? '<p class="card__excerpt">' + window.VP.escapeHtml(post.excerpt) + "</p>" : "") +
-          '<div class="card__date">' + date + author + "<span>" + window.VP.escapeHtml(reading) + "</span>" +
-            window.VP.bookmarkButtonMarkup(post.id) + "</div>" +
-        "</div>" +
-      "</article>"
-    );
-  }
-
   function articleMarkup(post) {
     var category = window.VP.getCategory(post.category);
     var date = window.VP.formatDate(post.created_at);
     var isoDate = window.VP.toIsoDate(post.created_at);
     var readingTime = window.VP.getReadingTime(post.content, true);
-    var content = window.VP.renderMarkdown(post.content, { toc: true, postId: post.id });
+    var content = window.VP.renderMarkdown(post.content, {
+      toc: true,
+      postId: post.id,
+      articleBody: true
+    });
     var author = post.author
       ? '<span class="article-author">' + window.VP.escapeHtml(post.author) + "</span>"
       : "";
@@ -248,22 +223,12 @@
     var slot = document.getElementById("relatedSlot");
     if (!slot || !window.VP.supabase) return;
 
-    var result = await window.VP.fetchPublishedPosts({ excludeId: post.id, limit: 7 });
-    if (result.error || !Array.isArray(result.data) || !result.data.length) return;
-
-    var sorted = result.data.slice().sort(function (a, b) {
-      return Number(b.category === post.category) - Number(a.category === post.category);
-    });
-    var items = sorted.slice(0, 3);
+    var items = await window.VP.fetchRelatedPosts(post, { limit: 3 });
+    if (!items.length) return;
 
     slot.innerHTML =
       '<div class="container">' +
-        '<section class="related" aria-labelledby="relatedTitle">' +
-          '<div class="section-bar">' +
-            '<h2 class="eyebrow" id="relatedTitle">Читайте также</h2>' +
-          "</div>" +
-          '<div class="post-grid">' + items.map(cardMarkup).join("") + "</div>" +
-        "</section>" +
+        window.VP.relatedSectionMarkup(post, items, { url: window.VP.postUrl }) +
       "</div>";
   }
 
@@ -332,6 +297,7 @@
     window.VP.trackPostView(post);
     bindVote(post);
     updateProgress();
+    window.VP.scrollToSection(location.hash, root);
     loadRelated(post);
   }
 

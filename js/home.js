@@ -12,6 +12,8 @@
   var searchHint = document.getElementById("searchHint");
   var progress = document.getElementById("readingProgress");
   var progressTicking = false;
+  // Якорь из исходного адреса: start-up replaceState ниже его убирает.
+  var initialHash = String(location.hash || "");
 
   var DEFAULT_TITLE = "Вместе проще — онлайн-гид для молодых семей";
   var DEFAULT_DESCRIPTION = "Короткие практичные статьи о деньгах, быту, документах и отношениях — для тех, кто учится жить вместе.";
@@ -53,7 +55,8 @@
     var params = new URLSearchParams(location.search);
     var category = params.get("cat");
 
-    if (!category) {
+    // В режиме статьи hash — якорь подзаголовка, а не старый фильтр рубрики.
+    if (!category && !postIdFromLocation()) {
       var hash = String(location.hash || "").replace(/^#/, "");
       if (hash && hash !== "all" && hash !== "top") category = hash;
     }
@@ -465,7 +468,11 @@
 
   function readerMarkup(post) {
     var category = window.VP.getCategory(post.category);
-    var content = window.VP.renderMarkdown(post.content, { toc: true, postId: post.id });
+    var content = window.VP.renderMarkdown(post.content, {
+      toc: true,
+      postId: post.id,
+      articleBody: true
+    });
     var cover = window.VP.coverMarkup(post, { eager: true });
 
     return (
@@ -496,6 +503,7 @@
             "</div>" +
           "</div>" +
         "</div>" +
+        '<div id="relatedSlot"></div>' +
       "</article>"
     );
   }
@@ -837,6 +845,19 @@
     });
   }
 
+  function renderRelated(post) {
+    var slot = document.getElementById("relatedSlot");
+    if (!slot) return;
+
+    slot.innerHTML =
+      '<div class="container">' +
+        window.VP.relatedSectionMarkup(post, state.posts, {
+          url: window.VP.homePostUrl,
+          inFeed: true
+        }) +
+      "</div>";
+  }
+
   function renderReader() {
     var post = state.posts.find(function (item) {
       return item.id === state.postId;
@@ -855,11 +876,17 @@
 
     // Просмотр статьи учитывается и в режиме ?post=..., и при переходе из ленты.
     trackCurrentPostView(post);
+    renderRelated(post);
 
-    window.scrollTo({
-      top: 0,
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
-    });
+    var hashToScroll = initialHash || String(location.hash || "");
+    initialHash = "";
+    var scrolledToHeading = hashToScroll && window.VP.scrollToSection(hashToScroll, feed);
+    if (!scrolledToHeading) {
+      window.scrollTo({
+        top: 0,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+      });
+    }
     updateReadingProgress();
   }
 
@@ -1016,11 +1043,18 @@
     render({ scroll: true });
   });
 
-  // Совместимость со старыми ссылками вида ./#money.
+  // Совместимость со старыми ссылками вида ./#money и якорями внутри статьи.
   window.addEventListener("hashchange", function () {
     var hash = String(location.hash || "").replace(/^#/, "");
     if (hash === "all" || categoryExists(hash)) {
       navigate({ filter: hash, postId: null, query: "" }, true);
+    } else if (state.postId) {
+      if (!window.VP.scrollToSection(location.hash, feed)) {
+        window.scrollTo({
+          top: 0,
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+        });
+      }
     }
   });
 
@@ -1034,11 +1068,8 @@
   syncSortUi();
 
   try {
-    history.replaceState(
-      historySnapshot(),
-      "",
-      urlFor({ filter: state.filter, sort: state.sort, postId: state.postId })
-    );
+    var initialUrl = urlFor({ filter: state.filter, sort: state.sort, postId: state.postId });
+    history.replaceState(historySnapshot(), "", initialUrl + initialHash);
   } catch (error) {
     console.warn("Не удалось нормализовать адрес страницы:", error);
   }

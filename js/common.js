@@ -1148,7 +1148,11 @@
       initChecklists(template.content, String(options.postId));
     }
 
-    var toc = options.toc ? buildTableOfContents(template.content) : "";
+    // В теле статьи ID и символ # нужны всем h2, а не только при длинном оглавлении.
+    var headings = options.toc || options.articleBody
+      ? prepareHeadings(template.content, options.articleBody === true)
+      : [];
+    var toc = options.toc ? buildTableOfContents(headings) : "";
     return toc + template.innerHTML;
   }
 
@@ -1176,13 +1180,12 @@
       .slice(0, 60);
   }
 
-  // Оглавление показываем, только если в статье больше трёх подзаголовков h2.
-  function buildTableOfContents(container) {
+  // Один проход по h2: транслитерированный ID + кнопка-якорь рядом с заголовком.
+  function prepareHeadings(container, withAnchors) {
     var headings = Array.prototype.slice.call(container.querySelectorAll("h2"));
-    if (headings.length <= 3) return "";
-
     var used = {};
-    var items = headings.map(function (heading) {
+
+    return headings.map(function (heading) {
       var label = (heading.textContent || "").trim() || "Раздел";
       var base = slugifyHeading(label) || "section";
       var id = base;
@@ -1195,7 +1198,28 @@
       used[id] = true;
       heading.id = id;
 
-      return '<li><a href="#' + escapeHtml(id) + '">' + escapeHtml(label) + "</a></li>";
+      if (withAnchors) {
+        var anchor = document.createElement("a");
+        anchor.className = "heading-anchor";
+        anchor.setAttribute("href", "#" + id);
+        anchor.setAttribute("data-heading-anchor", id);
+        anchor.setAttribute("aria-label", "Ссылка на раздел «" + label + "»");
+        anchor.setAttribute("title", "Скопировать ссылку на раздел");
+        anchor.textContent = "#";
+        heading.appendChild(anchor);
+      }
+
+      return { id: id, label: label };
+    });
+  }
+
+  // Оглавление показываем, только если в статье больше трёх подзаголовков h2.
+  function buildTableOfContents(headings) {
+    if (!headings || headings.length <= 3) return "";
+
+    var items = headings.map(function (heading) {
+      return '<li><a href="#' + escapeHtml(heading.id) + '">' +
+        escapeHtml(heading.label) + "</a></li>";
     });
 
     return (
@@ -1254,6 +1278,72 @@
 
   function homePostUrl(id) {
     return "./?post=" + encodeURIComponent(id);
+  }
+
+  // «Читайте также»: сначала материалы той же рубрики, затем остальные опубликованные.
+  function pickRelatedPosts(post, posts, limit) {
+    var max = Math.max(1, Math.min(3, Number(limit) || 3));
+    var currentId = post && post.id != null ? String(post.id) : "";
+    var category = post && post.category != null ? String(post.category) : "";
+    var source = (Array.isArray(posts) ? posts : []).filter(function (item) {
+      return item && String(item.id) !== currentId && isPubliclyVisible(item);
+    });
+
+    var same = source.filter(function (item) {
+      return String(item.category) === category;
+    });
+    var rest = source.filter(function (item) {
+      return String(item.category) !== category;
+    });
+
+    return same.concat(rest).slice(0, max);
+  }
+
+  async function fetchRelatedPosts(post, options) {
+    options = options || {};
+    if (!post || !post.id) return [];
+
+    var result = await fetchPublishedPosts({
+      excludeId: post.id,
+      limit: Math.max(12, Number(options.limit) || 3)
+    });
+    if (result.error) {
+      console.warn("Не удалось загрузить похожие статьи:", result.error);
+      return [];
+    }
+    return pickRelatedPosts(post, result.data, options.limit || 3);
+  }
+
+  function relatedSectionMarkup(post, posts, options) {
+    var items = pickRelatedPosts(post, posts, options && options.limit);
+    if (!items.length) return "";
+
+    var settings = options || {};
+    var makeUrl = typeof settings.url === "function" ? settings.url : postUrl;
+    var cards = items.map(function (item) {
+      var category = getCategory(item.category);
+      var feedAttr = settings.inFeed
+        ? ' data-post-link="' + escapeHtml(item.id) + '"'
+        : "";
+
+      return (
+        '<a class="related-card" href="' + escapeHtml(makeUrl(item.id)) + '"' + feedAttr + '>' +
+          '<span class="related-card__tag">' + escapeHtml(category.label) + "</span>" +
+          '<span class="related-card__title">' + escapeHtml(item.title || "Без заголовка") + "</span>" +
+          '<span class="related-card__meta">' +
+            escapeHtml(getReadingTime(item.content, true)) +
+            '<span class="related-card__arrow" aria-hidden="true">→</span>' +
+          "</span>" +
+        "</a>"
+      );
+    }).join("");
+
+    return (
+      '<section class="related" aria-labelledby="relatedTitle">' +
+        '<div class="section-bar"><h2 class="eyebrow" id="relatedTitle">Читайте также</h2></div>' +
+        '<div class="related-cards">' + cards + "</div>" +
+      "</section>"
+    );
   }
 
   function categoryUrl(id) {
@@ -1618,6 +1708,114 @@
     });
   }
 
+  /* ---------- Якоря подзаголовков и уведомления ---------- */
+
+  var sectionToast = null;
+  var sectionToastTimer = null;
+
+  function showToast(message) {
+    if (!message) return;
+    if (!sectionToast) {
+      sectionToast = document.getElementById("vpSectionToast");
+      if (!sectionToast) {
+        sectionToast = document.createElement("div");
+        sectionToast.id = "vpSectionToast";
+        sectionToast.className = "toast";
+        sectionToast.setAttribute("role", "status");
+        sectionToast.setAttribute("aria-live", "polite");
+        sectionToast.hidden = true;
+        document.body.appendChild(sectionToast);
+      }
+    }
+
+    sectionToast.textContent = message;
+    sectionToast.hidden = false;
+    window.clearTimeout(sectionToastTimer);
+    sectionToastTimer = window.setTimeout(function () {
+      sectionToast.hidden = true;
+    }, 2200);
+  }
+
+  function scrollToSection(hash, container) {
+    var raw = String(hash || "").replace(/^#/, "");
+    var id = raw;
+    try {
+      id = decodeURIComponent(raw);
+    } catch (error) {
+      id = raw;
+    }
+    if (!id) return false;
+
+    var target = document.getElementById(id);
+    if (!target || (container && !container.contains(target))) return false;
+
+    var reduceMotion = window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start"
+    });
+    return true;
+  }
+
+  function bindHeadingAnchors() {
+    document.addEventListener("click", function (event) {
+      var target = event.target;
+      if (!target || typeof target.closest !== "function") return;
+      var anchor = target.closest("[data-heading-anchor]");
+      if (!anchor) return;
+
+      event.preventDefault();
+      var id = anchor.getAttribute("data-heading-anchor") ||
+        String(anchor.getAttribute("href") || "").replace(/^#/, "");
+      if (!id) return;
+
+      var url = new URL(window.location.href);
+      url.hash = id;
+      try {
+        history.replaceState(history.state, "", url.href);
+      } catch (error) {
+        window.location.hash = id;
+      }
+      scrollToSection("#" + id, document);
+
+      copyText(url.href).then(function () {
+        showToast("Ссылка на раздел скопирована");
+      }).catch(function () {
+        window.prompt("Скопируйте ссылку на раздел:", url.href);
+        showToast("Ссылка на раздел скопирована");
+      });
+    });
+  }
+
+  /* ---------- Кнопка «Наверх» ---------- */
+
+  function initBackToTop() {
+    var button = document.querySelector("[data-back-to-top]");
+    if (!button) return;
+
+    var ticking = false;
+    function update() {
+      button.classList.toggle("is-visible", window.scrollY > 400);
+      ticking = false;
+    }
+
+    window.addEventListener("scroll", function () {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(update);
+    }, { passive: true });
+    window.addEventListener("resize", update);
+    update();
+
+    button.addEventListener("click", function (event) {
+      event.preventDefault();
+      var reduceMotion = window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    });
+  }
+
   // Страницы, где common.js подключён только для доступности:
   // без этой метки не добавляем рубрики, форму предложек и прочий сайтовый chrome.
   if (!document.documentElement.hasAttribute("data-vp-a11y-only")) {
@@ -1628,6 +1826,8 @@
     initChrome();
     initTopicSuggestForm();
     syncSuggestCategories();
+    bindHeadingAnchors();
+    initBackToTop();
 
     if (client) fetchCategories();
   }
@@ -1665,6 +1865,11 @@
     isDevHost: isDevHost,
     updateArticleMeta: updateArticleMeta,
     copyText: copyText,
+    showToast: showToast,
+    scrollToSection: scrollToSection,
+    pickRelatedPosts: pickRelatedPosts,
+    fetchRelatedPosts: fetchRelatedPosts,
+    relatedSectionMarkup: relatedSectionMarkup,
     getBookmarks: readBookmarks,
     isBookmarked: isBookmarked,
     toggleBookmark: toggleBookmark,
