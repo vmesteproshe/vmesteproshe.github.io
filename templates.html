@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ru" data-vp-a11y-only>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Шаблоны бланков — Вместе проще</title>
+  <meta name="description" content="Три готовых бланка для совместной жизни: памятка распределения платежей, опись коробок при переезде и план сбора документов. Заполняйте онлайн, печатайте или копируйте текстом.">
+  <meta name="theme-color" content="#ffffff">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Вместе проще">
+  <meta property="og:title" content="Шаблоны бланков — Вместе проще">
+  <meta property="og:description" content="Памятка платежей, опись коробок и план сбора документов — заполняйте, печатайте и копируйте текстом.">
+  <meta property="og:image" content="https://vmesteproshe.github.io/assets/og-cover.png">
+  <meta property="og:url" content="https://vmesteproshe.github.io/templates.html">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="config.js"></script>
+  <script defer src="js/common.js"></script>
+  <script defer src="js/templates.js"></script>
+  <!-- Yandex.Metrika counter -->
+  <script type="text/javascript">
+      (function(m,e,t,r,i,k,a){
+          m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+          m[i].l=1*new Date();
+          for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+          k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+      })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=114493569', 'ym');
+
+      ym(114493569, 'init', {ssr:true, webvisor:true, trackHash:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+  </script>
+  <noscript><div><img src="https://mc.yandex.ru/watch/114493569" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+  <!-- /Yandex.Metrika counter -->
+</head>
+<body id="top" class="templates-page">
+  <a class="skip-link" href="#main">Перейти к содержанию</a>
+
+  <header class="site-header">
+    <div class="container header-main">
+      <a class="brand" href="./" aria-label="Вместе проще — на главную">
+        <span class="brand__name">Вместе проще</span>
+        <span class="brand__descriptor">онлайн-гид<br>для молодых семей</span>
+      </a>
+      <div class="header-actions">
+        <time class="header-date" id="headerDate"></time>
+        <button class="a11y-toggle" type="button" data-vp-a11y-toggle aria-label="Версия для слабовидящих" aria-pressed="false" title="Версия для слабовидящих">
+          <svg class="a11y-toggle__icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M2 12c2.2-3.6 5.8-6 10-6s7.8 2.4 10 6c-2.2 3.6-5.8 6-10 6s-7.8-2.4-10-6Z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <span class="a11y-toggle__label">Версия для слабовидящих</span>
+        </button>
+      </div>
+    </div>
+    <nav class="container rubrics" aria-label="Рубрики">
+      <a href="./">Все</a>
+      <a href="./?cat=money">Деньги</a>
+      <a href="./?cat=home">Быт</a>
+      <a href="./?cat=docs">Документы</a>
+      <a href="./?cat=relationships">Отношения</a>
+      <a class="rubrics__calculator" href="calculator.html">Калькулятор</a>
+      <a class="rubrics__templates" href="templates.html" aria-current="page">Шаблоны</a>
+      <a class="rubrics__about" href="about.html">О проекте</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <div class="container">
+      <header class="templates-header">
+        <p class="eyebrow">Инструменты</p>
+        <h1 class="templates-title">Готовые бланки</h1>
+        <p class="templates-lead">Три бланка для ситуаций, которые часто случаются у пары: договорённости о тратах, переезд и сбор документов. Заполняйте поля — готовый документ собирается рядом. Данные остаются в браузере и никуда не отправляются.</p>
+        <p class="templates-meta">Памятка платежей · Опись коробок · План документов</p>
+      </header>
+
+      <noscript><p class="notice">Для работы конструктора включите JavaScript.</p></noscript>
+
+      <div class="templates-tabs" role="tablist" aria-label="Выбор бланка">
+        <button class="templates-tab" id="tabPayments" type="button" role="tab" aria-controls="panelPayments" aria-selected="true" data-template="payments">01 · Платежи</button>
+        <button class="templates-tab" id="tabBoxes" type="button" role="tab" aria-controls="panelBoxes" aria-selected="false" data-template="boxes">02 · Коробки</button>
+        <button class="templates-tab" id="tabDocs" type="button" role="tab" aria-controls="panelDocs" aria-selected="false" data-template="docs">03 · Документы</button>
+      </div>
+
+      <div class="templates-grid">
+        <div class="builder-column">
+          <section class="builder-panel" id="panelPayments" role="tabpanel" aria-labelledby="tabPayments" data-panel="payments">
+            <div class="builder-head">
+              <h2>Памятка распределения платежей</h2>
+              <p>Запишите, кто за что платит. Итоги по тратам и партнёрам считаются автоматически.</p>
+            </div>
+            <form class="builder-form" id="paymentsForm" novalidate>
+              <div class="tpl-fields-row">
+                <div class="field">
+                  <label for="partner1">Имя первого партнёра</label>
+                  <input class="field-input" id="partner1" type="text" maxlength="60" placeholder="Например, Анна">
+                </div>
+                <div class="field">
+                  <label for="partner2">Имя второго партнёра</label>
+                  <input class="field-input" id="partner2" type="text" maxlength="60" placeholder="Например, Игорь">
+                </div>
+              </div>
+              <div class="field">
+                <label for="paymentsDate">Дата памятки</label>
+                <input class="field-input" id="paymentsDate" type="date">
+              </div>
+              <p class="field-label">Регулярные траты</p>
+              <div class="tpl-list" id="paymentsRows"></div>
+              <button class="btn btn--secondary btn--small" type="button" data-add-row="payments">+ Добавить трату</button>
+              <p class="field-hint">Суммы можно менять в любом порядке — итог пересчитается сразу.</p>
+            </form>
+          </section>
+
+          <section class="builder-panel" id="panelBoxes" role="tabpanel" aria-labelledby="tabBoxes" data-panel="boxes" hidden>
+            <div class="builder-head">
+              <h2>Опись коробок при переезде</h2>
+              <p>По одной строке на коробку: номер, комната и что внутри. Хрупкие вещи отметьте отдельно.</p>
+            </div>
+            <form class="builder-form" id="boxesForm" novalidate>
+              <div class="field">
+                <label for="boxesAddress">Адрес переезда</label>
+                <input class="field-input" id="boxesAddress" type="text" maxlength="160" placeholder="Например, г. Москва, ул. Новая, д. 5, кв. 12">
+              </div>
+              <div class="field">
+                <label for="boxesDate">Дата переезда</label>
+                <input class="field-input" id="boxesDate" type="date">
+              </div>
+              <p class="field-label">Коробки</p>
+              <div class="tpl-list" id="boxesRows"></div>
+              <button class="btn btn--secondary btn--small" type="button" data-add-row="boxes">+ Добавить коробку</button>
+              <p class="field-hint">Номер можно оставить пустым — в описи он заполнится по порядку.</p>
+            </form>
+          </section>
+
+          <section class="builder-panel" id="panelDocs" role="tabpanel" aria-labelledby="tabDocs" data-panel="docs" hidden>
+            <div class="builder-head">
+              <h2>План сбора документов</h2>
+              <p>Выберите ситуацию — появится список документов. Названия можно редактировать, а собранные пункты отмечать.</p>
+            </div>
+            <form class="builder-form" id="docsForm" novalidate>
+              <div class="field">
+                <label for="docsSituation">Ситуация</label>
+                <select class="field-input" id="docsSituation">
+                  <option value="marriage">Смена фамилии после свадьбы</option>
+                  <option value="rent">Аренда квартиры</option>
+                  <option value="purchase">Покупка жилья</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="docsFio">ФИО</label>
+                <input class="field-input" id="docsFio" type="text" maxlength="120" placeholder="Иванов Иван Иванович">
+              </div>
+              <div class="field">
+                <label for="docsDate">Дата плана</label>
+                <input class="field-input" id="docsDate" type="date">
+              </div>
+              <p class="field-label">Документы</p>
+              <div class="tpl-list" id="docsRows"></div>
+              <button class="btn btn--secondary btn--small" type="button" data-add-row="docs">+ Добавить документ</button>
+              <p class="field-hint">При смене ситуации список заменится, если вы ещё не редактировали его вручную.</p>
+            </form>
+          </section>
+        </div>
+
+        <aside class="preview-column" aria-label="Предпросмотр бланка">
+          <div class="preview-toolbar">
+            <p class="eyebrow">Предпросмотр</p>
+            <div class="preview-actions">
+              <button class="btn btn--small" type="button" data-template-print>Распечатать</button>
+              <button class="btn btn--small btn--secondary" type="button" data-template-copy>Скопировать текстом</button>
+            </div>
+            <p class="field-status" id="templateCopyStatus" role="status" aria-live="polite"></p>
+          </div>
+          <div class="sheet-wrap">
+            <article class="document-sheet" id="documentPreview" aria-label="Готовый бланк">
+              <div id="previewContent"></div>
+            </article>
+          </div>
+          <p class="field-hint">На печати останется только этот бланк: без меню, формы и кнопок, на листе А4.</p>
+        </aside>
+      </div>
+
+      <section class="about-cta templates-cta" aria-labelledby="templatesCtaTitle">
+        <div>
+          <p class="eyebrow">Договоритесь заранее</p>
+          <h2 id="templatesCtaTitle">Бланк — это только основа. Дальше нужен разговор.</h2>
+        </div>
+        <a class="btn" href="./?cat=home">Читать о быте</a>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-main">
+      <div class="footer-brand">
+        <a class="brand brand--footer" href="./" aria-label="Вместе проще — на главную">
+          <span class="brand__name">Вместе проще</span>
+        </a>
+        <p>Короткие статьи о совместной жизни.<br>Без советов «просто будь терпимее».</p>
+      </div>
+      <nav class="footer-nav" aria-label="Рубрики в подвале">
+        <p class="footer-title">Рубрики</p>
+        <a href="./?cat=money">Деньги</a>
+        <a href="./?cat=home">Быт</a>
+        <a href="./?cat=docs">Документы</a>
+        <a href="./?cat=relationships">Отношения</a>
+      </nav>
+      <nav class="footer-nav" aria-label="О проекте">
+        <p class="footer-title">Проект</p>
+        <a href="about.html">О проекте</a>
+        <a href="./">Все материалы</a>
+        <a href="#top">Наверх</a>
+      </nav>
+    </div>
+    <div class="container footer-bottom">
+      <p>© <span id="copyrightYear">2026</span> «Вместе проще»</p>
+      <p>Онлайн-гид для молодых семей</p>
+    </div>
+  </footer>
+</body>
+</html>
