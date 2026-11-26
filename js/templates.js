@@ -228,15 +228,16 @@
     item = item || {};
     return (
       '<div class="tpl-row tpl-row--doc" data-row>' +
-        '<label class="tpl-doc-check">' +
-          '<input type="checkbox" data-field="done" aria-label="Документ собран"' + (item.done ? " checked" : "") + ">" +
-          '<span class="visually-hidden">Собран</span>' +
-        "</label>" +
-        '<input class="field-input" type="text" data-field="name" maxlength="120" ' +
-          'placeholder="Название документа" aria-label="Название документа" ' +
-          'value="' + escapeHtml(item.name || "") + '">' +
-        '<button class="text-btn text-btn--danger text-btn--compact" type="button" data-remove-row ' +
-          'aria-label="Удалить документ">Удалить</button>' +
+        rowHead("Документ") +
+        '<div class="tpl-row__grid tpl-row__grid--docs">' +
+          '<label class="tpl-doc-check">' +
+            '<input type="checkbox" data-field="done" aria-label="Документ собран"' + (item.done ? " checked" : "") + ">" +
+            '<span class="visually-hidden">Собран</span>' +
+          "</label>" +
+          '<input class="field-input" type="text" data-field="name" maxlength="120" ' +
+            'placeholder="Название документа" aria-label="Название документа" ' +
+            'value="' + escapeHtml(item.name || "") + '">' +
+        "</div>" +
       "</div>"
     );
   }
@@ -354,10 +355,19 @@
   }
 
   function signatures(first, second) {
+    function signature(label) {
+      return (
+        '<div class="doc-signature">' +
+          '<i aria-hidden="true"></i>' +
+          "<span>/ " + escapeHtml(label) + "</span>" +
+        "</div>"
+      );
+    }
+
     return (
       '<div class="doc-signatures">' +
-        '<div class="doc-signature"><span>' + escapeHtml(first) + "</span><i></i></div>" +
-        '<div class="doc-signature"><span>' + escapeHtml(second) + "</span><i></i></div>" +
+        signature(first) +
+        signature(second) +
       "</div>"
     );
   }
@@ -395,10 +405,10 @@
         metaItem("Участников", data.names.length)
       ]) +
       '<section class="doc-section"><h3>Участники</h3>' +
-        '<ol class="doc-partners">' +
+        '<ul class="doc-partners">' +
           '<li><span>1</span><strong>' + escapeHtml(data.names[0]) + "</strong></li>" +
           '<li><span>2</span><strong>' + escapeHtml(data.names[1]) + "</strong></li>" +
-        "</ol>" +
+        "</ul>" +
       "</section>" +
       '<section class="doc-section"><h3>Регулярные траты</h3>' +
         '<table class="doc-table">' +
@@ -409,7 +419,7 @@
         "</table>" +
       "</section>" +
       '<section class="doc-section doc-summary"><h3>Итоги по партнёрам</h3><ul>' + summary + "</ul></section>" +
-      signatures("Подпись " + data.names[0], "Подпись " + data.names[1]) +
+      signatures(data.names[0], data.names[1]) +
       '<p class="doc-footnote">Памятка составляется для договорённости между партнёрами. Суммы и даты можно уточнять по мере изменения расходов.</p>'
     );
   }

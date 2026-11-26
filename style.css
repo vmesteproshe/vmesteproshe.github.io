@@ -3753,7 +3753,7 @@ mark {
 
 .templates-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   gap: clamp(28px, 5vw, 64px);
   margin-top: 34px;
   align-items: start;
@@ -3783,11 +3783,14 @@ mark {
 }
 
 .builder-form .field {
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .builder-form .field-input {
   max-width: none;
+  min-height: 42px;
+  padding: 9px 11px;
+  font-size: 13px;
 }
 
 .tpl-fields-row {
@@ -3834,6 +3837,20 @@ mark {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.tpl-row__grid--boxes {
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+}
+
+.tpl-row__grid--docs {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.tpl-row__grid--payments .tpl-field:first-child,
+.tpl-row__grid--payments .tpl-field:last-child {
+  grid-column: 1 / -1;
+}
+
 .tpl-field {
   display: flex;
   flex-direction: column;
@@ -3865,23 +3882,20 @@ mark {
 }
 
 .tpl-check {
-  margin: 2px 0 0;
+  grid-column: 1 / -1;
+  margin: 0;
   font-size: 12px;
 }
 
 .tpl-row--doc {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 12px;
+  padding: 14px 16px;
 }
 
 .tpl-doc-check {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
+  width: 34px;
   height: 42px;
   border: 1px solid var(--line);
   background: var(--bg);
@@ -3935,7 +3949,7 @@ mark {
 
 .sheet-wrap {
   max-height: calc(100vh - 190px);
-  padding: clamp(12px, 2vw, 22px);
+  padding: 32px;
   border: 1px solid var(--line);
   background: var(--surface);
   overflow: auto;
@@ -3944,7 +3958,7 @@ mark {
 .document-sheet {
   width: 100%;
   min-height: 620px;
-  padding: clamp(22px, 3.2vw, 44px);
+  padding: 32px;
   background: var(--bg);
   border: 1px solid var(--line);
   box-shadow: 0 10px 28px rgba(17, 17, 17, 0.07);
@@ -3981,8 +3995,12 @@ mark {
 .doc-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 22px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 22px;
   margin: 16px 0 22px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 11px;
 }
@@ -4039,7 +4057,7 @@ mark {
 
 .doc-table th,
 .doc-table td {
-  padding: 8px 7px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
@@ -4083,8 +4101,8 @@ mark {
   display: flex;
   justify-content: space-between;
   gap: 14px;
-  padding-bottom: 5px;
-  border-bottom: 1px dashed var(--line);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
   font-size: 12px;
 }
 
@@ -4141,16 +4159,22 @@ mark {
   margin-top: 34px;
 }
 
-.doc-signature span {
-  display: block;
-  color: var(--muted);
-  font-size: 10px;
+.doc-signature {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .doc-signature i {
-  display: block;
-  margin-top: 26px;
+  flex: 1 1 auto;
+  min-width: 60px;
   border-bottom: 1px solid var(--text);
+}
+
+.doc-signature span {
+  flex: none;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .doc-footnote {
@@ -4205,7 +4229,9 @@ mark {
   .about-editor-grid {
     grid-template-columns: 1fr;
   }
+}
 
+@media (max-width: 960px) {
   .templates-grid {
     grid-template-columns: 1fr;
   }
@@ -4492,6 +4518,11 @@ mark {
     font-size: 10px;
   }
 
+  .sheet-wrap,
+  .document-sheet {
+    padding: 20px;
+  }
+
   .login-view {
     min-height: calc(100vh - 65px);
     padding: 30px var(--gutter) 52px;
@@ -4674,6 +4705,11 @@ mark {
 
   .preview-width-tabs {
     display: none;
+  }
+
+  .sheet-wrap,
+  .document-sheet {
+    padding: 16px;
   }
 
   .confirm-actions {
@@ -5290,10 +5326,13 @@ html[data-vp-a11y="on"][data-vp-scheme] .doc-check.is-done {
   .templates-page .templates-tabs,
   .templates-page .builder-column,
   .templates-page .preview-toolbar,
+  .templates-page [data-template-print],
+  .templates-page [data-template-copy],
   .templates-page .preview-column > .field-hint,
   .templates-page .templates-cta,
   .templates-page .toast,
   .templates-page .vp-a11y-panel,
+  .templates-page [data-vp-a11y-toggle],
   .templates-page .back-to-top,
   .templates-page .skip-link {
     display: none !important;
@@ -5306,8 +5345,10 @@ html[data-vp-a11y="on"][data-vp-scheme] .doc-check.is-done {
   .templates-page .preview-column,
   .templates-page .sheet-wrap {
     display: block !important;
+    position: static !important;
     width: auto !important;
     max-width: none !important;
+    max-height: none !important;
     min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -5319,7 +5360,8 @@ html[data-vp-a11y="on"][data-vp-scheme] .doc-check.is-done {
 
   .templates-page .document-sheet {
     display: block !important;
-    width: auto !important;
+    width: 100% !important;
+    max-width: none !important;
     min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -5329,6 +5371,8 @@ html[data-vp-a11y="on"][data-vp-scheme] .doc-check.is-done {
     color: #000000 !important;
     font-size: 10.5pt;
     line-height: 1.45;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .templates-page .document-sheet *,
