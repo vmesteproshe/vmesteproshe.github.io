@@ -11,8 +11,25 @@
 
   function updateProgress() {
     if (!progress) return;
-    var max = document.documentElement.scrollHeight - window.innerHeight;
-    var ratio = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+    var article = root.querySelector(".article");
+    if (!article) {
+      progress.hidden = true;
+      progress.style.transform = "scaleX(0)";
+      progressTicking = false;
+      return;
+    }
+
+    var rect = article.getBoundingClientRect();
+    var start = window.scrollY + rect.top;
+    var end = start + article.offsetHeight - window.innerHeight;
+    var ratio;
+    if (end <= start) {
+      ratio = 1;
+    } else {
+      ratio = Math.min(1, Math.max(0, (window.scrollY - start) / (end - start)));
+    }
+
+    progress.hidden = false;
     progress.style.transform = "scaleX(" + ratio + ")";
     progressTicking = false;
   }

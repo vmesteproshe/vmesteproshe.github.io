@@ -10,6 +10,8 @@
   var searchInput = document.getElementById("siteSearch");
   var searchClear = document.getElementById("searchClear");
   var searchHint = document.getElementById("searchHint");
+  var progress = document.getElementById("readingProgress");
+  var progressTicking = false;
 
   var DEFAULT_TITLE = "Вместе проще — онлайн-гид для молодых семей";
   var DEFAULT_DESCRIPTION = "Короткие практичные статьи о деньгах, быту, документах и отношениях — для тех, кто учится жить вместе.";
@@ -540,22 +542,70 @@
       "</section>";
   }
 
+  /* ---------- Прогресс чтения ---------- */
+
+  function updateReadingProgress() {
+    if (!progress) return;
+    if (!state.postId) {
+      progress.hidden = true;
+      progress.style.transform = "scaleX(0)";
+      progressTicking = false;
+      return;
+    }
+
+    var article = feed.querySelector(".article--inline");
+    if (!article) {
+      progress.hidden = true;
+      progress.style.transform = "scaleX(0)";
+      progressTicking = false;
+      return;
+    }
+
+    var rect = article.getBoundingClientRect();
+    var start = window.scrollY + rect.top;
+    var end = start + article.offsetHeight - window.innerHeight;
+    var ratio;
+    if (end <= start) {
+      ratio = 1;
+    } else {
+      ratio = Math.min(1, Math.max(0, (window.scrollY - start) / (end - start)));
+    }
+
+    progress.hidden = false;
+    progress.style.transform = "scaleX(" + ratio + ")";
+    progressTicking = false;
+  }
+
+  function requestReadingProgressUpdate() {
+    if (!progress || progressTicking) return;
+    progressTicking = true;
+    window.requestAnimationFrame(updateReadingProgress);
+  }
+
+  window.addEventListener("scroll", requestReadingProgressUpdate, { passive: true });
+  window.addEventListener("resize", requestReadingProgressUpdate);
+
   /* ---------- Отрисовка ---------- */
 
   function render(options) {
     options = options || {};
     feed.setAttribute("aria-busy", state.loading ? "true" : "false");
 
-    if (!state.loaded) return;
+    if (!state.loaded) {
+      updateReadingProgress();
+      return;
+    }
 
     if (state.error) {
       resetMeta();
       feed.innerHTML = errorMarkup(state.error);
+      updateReadingProgress();
       return;
     }
 
     if (state.query) {
       renderSearch();
+      updateReadingProgress();
       return;
     }
 
@@ -566,12 +616,14 @@
 
     if (state.filter === SAVED_FILTER) {
       renderSaved();
+      updateReadingProgress();
       return;
     }
 
     if (!state.posts.length) {
       resetMeta();
       feed.innerHTML = emptyMarkup(state.filter);
+      updateReadingProgress();
       return;
     }
 
@@ -580,6 +632,8 @@
     } else {
       renderFilter();
     }
+
+    updateReadingProgress();
 
     if (options.scroll) {
       window.scrollTo({
@@ -671,6 +725,7 @@
     if (!post) {
       resetMeta();
       feed.innerHTML = notFoundMarkup();
+      updateReadingProgress();
       return;
     }
 
@@ -685,6 +740,7 @@
       top: 0,
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
     });
+    updateReadingProgress();
   }
 
   /* ---------- Загрузка ---------- */

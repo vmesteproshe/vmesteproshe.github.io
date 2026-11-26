@@ -750,6 +750,101 @@
     syncBookmarkButtons(id, saved);
   }, true);
 
+  /* ---------- Лайтбокс изображений ---------- */
+
+  var lightbox = null;
+  var lightboxImage = null;
+  var lightboxCaption = null;
+  var lightboxClose = null;
+  var lightboxLastFocus = null;
+
+  function ensureLightbox() {
+    if (lightbox) return lightbox;
+
+    lightbox = document.createElement("div");
+    lightbox.className = "lightbox";
+    lightbox.id = "imageLightbox";
+    lightbox.hidden = true;
+    lightbox.setAttribute("aria-hidden", "true");
+    lightbox.innerHTML =
+      '<button class="lightbox__close" type="button" aria-label="Закрыть изображение">×</button>' +
+      '<figure class="lightbox__figure" role="dialog" aria-modal="true" aria-label="Просмотр изображения">' +
+        '<img class="lightbox__img" alt="">' +
+        '<figcaption class="lightbox__caption"></figcaption>' +
+      "</figure>";
+
+    document.body.appendChild(lightbox);
+    lightboxImage = lightbox.querySelector(".lightbox__img");
+    lightboxCaption = lightbox.querySelector(".lightbox__caption");
+    lightboxClose = lightbox.querySelector(".lightbox__close");
+
+    lightbox.addEventListener("click", function (event) {
+      if (event.target === lightbox) closeLightbox();
+    });
+
+    lightboxClose.addEventListener("click", function () {
+      closeLightbox();
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && lightbox && !lightbox.hidden) {
+        event.preventDefault();
+        closeLightbox();
+      }
+    });
+
+    return lightbox;
+  }
+
+  function openLightbox(img) {
+    if (!img) return;
+    ensureLightbox();
+
+    var src = img.currentSrc || img.getAttribute("src") || "";
+    if (!src) return;
+
+    var alt = (img.getAttribute("alt") || "").trim();
+    lightboxLastFocus = document.activeElement;
+    lightboxImage.src = src;
+    lightboxImage.alt = alt;
+    lightboxCaption.textContent = alt;
+    lightbox.hidden = false;
+    lightbox.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+
+    if (lightboxClose && typeof lightboxClose.focus === "function") {
+      lightboxClose.focus();
+    }
+  }
+
+  function closeLightbox() {
+    if (!lightbox || lightbox.hidden) return;
+    lightbox.hidden = true;
+    lightbox.setAttribute("aria-hidden", "true");
+    lightboxImage.removeAttribute("src");
+    lightboxImage.alt = "";
+    lightboxCaption.textContent = "";
+    document.body.style.overflow = "";
+
+    if (lightboxLastFocus && typeof lightboxLastFocus.focus === "function") {
+      lightboxLastFocus.focus();
+    }
+    lightboxLastFocus = null;
+  }
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || target.tagName !== "IMG") return;
+    if (!target.closest(".article-body")) return;
+    if (target.closest("a, button, [data-no-lightbox], .media__fallback")) return;
+    if (target.hasAttribute("data-cover")) return;
+    if (target.getAttribute("aria-hidden") === "true" || target.getAttribute("role") === "presentation") return;
+    if (target.classList.contains("lightbox__img")) return;
+
+    event.preventDefault();
+    openLightbox(target);
+  });
+
   /* ---------- Поделиться ---------- */
 
   function resetShareLabel(button, original) {
