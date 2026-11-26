@@ -13,6 +13,7 @@
 
   var DEFAULT_TITLE = "Вместе проще — онлайн-гид для молодых семей";
   var DEFAULT_DESCRIPTION = "Короткие практичные статьи о деньгах, быту, документах и отношениях — для тех, кто учится жить вместе.";
+  var SAVED_FILTER = "saved";
 
   var state = {
     posts: [],
@@ -36,6 +37,10 @@
     });
   }
 
+  function isKnownFilter(id) {
+    return id === "all" || id === SAVED_FILTER || categoryExists(id);
+  }
+
   function filterFromLocation() {
     var params = new URLSearchParams(location.search);
     var category = params.get("cat");
@@ -46,7 +51,7 @@
     }
 
     if (category === "all") return "all";
-    return categoryExists(category) ? category : "all";
+    return isKnownFilter(category) ? category : "all";
   }
 
   function sortFromLocation() {
@@ -96,7 +101,7 @@
     next = next || {};
 
     if (next.filter !== undefined) {
-      state.filter = next.filter === "all" || categoryExists(next.filter) ? next.filter : "all";
+      state.filter = isKnownFilter(next.filter) ? next.filter : "all";
     }
     if (next.sort !== undefined) {
       state.sort = next.sort === "popular" ? "popular" : "new";
@@ -124,6 +129,21 @@
       button.setAttribute("aria-pressed", active ? "true" : "false");
     });
   }
+
+  function updateBookmarkCount() {
+    var count = window.VP.getBookmarks().length;
+    document.querySelectorAll("[data-bookmark-count]").forEach(function (element) {
+      element.textContent = String(count);
+    });
+  }
+
+  document.addEventListener("vp:bookmarks", function () {
+    updateBookmarkCount();
+    if (state.filter === SAVED_FILTER && !state.query && !state.postId) {
+      render({ scroll: false });
+    }
+  });
+  updateBookmarkCount();
 
   function postTime(post) {
     var time = new Date(post && post.created_at).getTime();
@@ -201,9 +221,10 @@
     var printMarkup = className === "article-meta"
       ? '<button class="text-btn article-print" type="button" data-print>Распечатать</button>'
       : "";
+    var bookmarkMarkup = window.VP.bookmarkButtonMarkup(post.id);
 
-    if (!date && !author && !readingMarkup && !printMarkup) return "";
-    return '<div class="' + className + '">' + date + author + readingMarkup + printMarkup + "</div>";
+    if (!date && !author && !readingMarkup && !printMarkup && !bookmarkMarkup) return "";
+    return '<div class="' + className + '">' + date + author + readingMarkup + printMarkup + bookmarkMarkup + "</div>";
   }
 
   function cardMarkup(post) {
@@ -386,7 +407,8 @@
         '<div class="container">' +
           '<div class="article-body">' + content + "</div>" +
           '<div class="article-footer">' +
-            '<button class="text-btn" type="button" data-share-post>Поделиться ссылкой</button>' +
+            '<button class="text-btn" type="button" data-share-post data-share-title="' +
+              window.VP.escapeHtml(post.title || "") + '">Поделиться</button>' +
             '<div class="article-footer__side">' +
               '<a class="text-btn" href="' + window.VP.escapeHtml(window.VP.categoryUrl(category.id)) +
                 '" data-category="' + window.VP.escapeHtml(category.id) + '">Ещё в рубрике</a>' +
@@ -477,6 +499,47 @@
     render({ scroll: false });
   }
 
+  /* ---------- Сохранённое ---------- */
+
+  function savedPosts() {
+    var ids = window.VP.getBookmarks();
+    return state.posts.filter(function (post) {
+      return ids.indexOf(String(post.id)) !== -1;
+    });
+  }
+
+  function renderSaved() {
+    var posts = savedPosts();
+    resetMeta();
+    document.title = "Сохранённое — Вместе проще";
+    window.VP.setActiveCategory(SAVED_FILTER);
+
+    var header =
+      '<header class="filter-head">' +
+        '<p class="eyebrow">Закладки</p>' +
+        '<h1 class="filter-title" id="filterTitle">Сохранённое</h1>' +
+        '<p class="filter-description">Материалы, которые вы сохранили на этом устройстве. Закладки не привязаны к аккаунту.</p>' +
+        '<p class="filter-count">' + countLabel(posts.length) + "</p>" +
+      "</header>";
+
+    if (!posts.length) {
+      feed.innerHTML =
+        '<section class="feed" aria-labelledby="filterTitle">' + header +
+          '<div class="state">' +
+            '<h2 class="state__title">Здесь пока пусто</h2>' +
+            '<p class="state__text">Нажмите флажок «Сохранить» у понравившейся статьи — она появится в этом списке.</p>' +
+            '<a class="btn" href="./" data-category="all">Смотреть все материалы</a>' +
+          "</div>" +
+        "</section>";
+      return;
+    }
+
+    feed.innerHTML =
+      '<section class="feed" aria-labelledby="filterTitle">' + header +
+        '<div class="post-grid">' + posts.map(cardMarkup).join("") + "</div>" +
+      "</section>";
+  }
+
   /* ---------- Отрисовка ---------- */
 
   function render(options) {
@@ -498,6 +561,11 @@
 
     if (state.postId) {
       renderReader();
+      return;
+    }
+
+    if (state.filter === SAVED_FILTER) {
+      renderSaved();
       return;
     }
 
@@ -696,20 +764,6 @@
       return;
     }
 
-    var shareTrigger = event.target.closest("[data-share-post]");
-    if (shareTrigger) {
-      var original = shareTrigger.textContent;
-      window.VP.copyText(location.href).then(function () {
-        shareTrigger.textContent = "Ссылка скопирована";
-        window.setTimeout(function () {
-          shareTrigger.textContent = original;
-        }, 2200);
-      }).catch(function () {
-        window.prompt("Скопируйте ссылку на статью:", location.href);
-      });
-      return;
-    }
-
     var postLink = event.target.closest("[data-post-link]");
     if (postLink) {
       event.preventDefault();
@@ -761,7 +815,7 @@
     var saved = event.state;
 
     if (saved && typeof saved === "object" && ("filter" in saved || "postId" in saved)) {
-      state.filter = saved.filter === "all" || categoryExists(saved.filter) ? saved.filter : "all";
+      state.filter = isKnownFilter(saved.filter) ? saved.filter : "all";
       state.sort = saved.sort === "popular" ? "popular" : "new";
       state.postId = saved.postId || null;
       state.query = String(saved.query || "");

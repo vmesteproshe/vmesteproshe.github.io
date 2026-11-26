@@ -242,7 +242,7 @@
       var hash = String(location.hash || "").replace(/^#/, "");
       if (hash && hash !== "all" && hash !== "top") id = hash;
     }
-    if (!id || id === "all" || CATEGORY_MAP[id]) return;
+    if (!id || id === "all" || id === "saved" || CATEGORY_MAP[id]) return;
 
     var label = categoryLabelFromId(id);
     categories.push({
@@ -639,6 +639,176 @@
     });
     updateChecklistProgress(wrapper);
   });
+
+  /* ---------- Закладки без регистрации ---------- */
+
+  var BOOKMARKS_KEY = "vp_bookmarks";
+
+  function readBookmarks() {
+    try {
+      var raw = window.localStorage.getItem(BOOKMARKS_KEY);
+      var parsed = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(parsed)) return [];
+
+      var seen = Object.create(null);
+      return parsed.map(function (value) {
+        return value == null ? "" : String(value);
+      }).filter(function (value) {
+        if (!value || seen[value]) return false;
+        seen[value] = true;
+        return true;
+      });
+    } catch (error) {
+      console.warn("Не удалось прочитать закладки:", error);
+      return [];
+    }
+  }
+
+  function storeBookmarks(ids) {
+    try {
+      window.localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(ids));
+    } catch (error) {
+      console.warn("Не удалось сохранить закладки:", error);
+    }
+  }
+
+  function isBookmarked(id) {
+    var key = id == null ? "" : String(id);
+    if (!key) return false;
+    return readBookmarks().indexOf(key) !== -1;
+  }
+
+  function toggleBookmark(id) {
+    var key = id == null ? "" : String(id);
+    if (!key) return false;
+
+    var ids = readBookmarks();
+    var index = ids.indexOf(key);
+    var saved = index === -1;
+    if (saved) {
+      ids.push(key);
+    } else {
+      ids.splice(index, 1);
+    }
+    storeBookmarks(ids);
+    document.dispatchEvent(new CustomEvent("vp:bookmarks", {
+      detail: { id: key, ids: ids.slice(), saved: saved }
+    }));
+    return saved;
+  }
+
+  function bookmarkStateLabel(saved) {
+    return saved ? "В сохранённом" : "Сохранить";
+  }
+
+  function bookmarkButtonMarkup(id) {
+    var key = id == null ? "" : String(id);
+    if (!key) return "";
+    var saved = isBookmarked(key);
+    var label = bookmarkStateLabel(saved);
+
+    return (
+      '<button class="bookmark-btn' + (saved ? " is-active" : "") + '" type="button" ' +
+        'data-bookmark="' + escapeHtml(key) + '" aria-pressed="' + (saved ? "true" : "false") + '" ' +
+        'aria-label="' + (saved ? "Убрать из сохранённого" : "Сохранить статью") + '" ' +
+        'title="' + label + '">' +
+        '<span class="bookmark-btn__icon" aria-hidden="true">⚑</span>' +
+        '<span class="bookmark-btn__label">' + label + "</span>" +
+      "</button>"
+    );
+  }
+
+  function syncBookmarkButtons(id, saved) {
+    var key = id == null ? "" : String(id);
+    if (!key) return;
+    var label = bookmarkStateLabel(saved);
+
+    document.querySelectorAll("[data-bookmark]").forEach(function (button) {
+      if (button.getAttribute("data-bookmark") !== key) return;
+      button.classList.toggle("is-active", saved);
+      button.setAttribute("aria-pressed", saved ? "true" : "false");
+      button.setAttribute("aria-label", saved ? "Убрать из сохранённого" : "Сохранить статью");
+      button.setAttribute("title", label);
+      var labelElement = button.querySelector(".bookmark-btn__label");
+      if (labelElement) labelElement.textContent = label;
+    });
+  }
+
+  // Перехватываем клик в фазе захвата, чтобы флажок не открывал карточку статьи.
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || typeof target.closest !== "function") return;
+    var button = target.closest("[data-bookmark]");
+    if (!button) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    var id = button.getAttribute("data-bookmark");
+    if (!id) return;
+    var saved = toggleBookmark(id);
+    syncBookmarkButtons(id, saved);
+  }, true);
+
+  /* ---------- Поделиться ---------- */
+
+  function resetShareLabel(button, original) {
+    var timer = Number(button.getAttribute("data-share-timer"));
+    if (timer) window.clearTimeout(timer);
+    button.removeAttribute("data-share-timer");
+    button.textContent = original;
+  }
+
+  function copyShareLink(button, url, original) {
+    copyText(url).then(function () {
+      resetShareLabel(button, original);
+      button.textContent = "Ссылка скопирована";
+      var timer = window.setTimeout(function () {
+        button.removeAttribute("data-share-timer");
+        button.textContent = original;
+      }, 2000);
+      button.setAttribute("data-share-timer", String(timer));
+    }).catch(function () {
+      window.prompt("Скопируйте ссылку на статью:", url);
+    });
+  }
+
+  function sharePost(button) {
+    if (!button) return;
+
+    var url = window.location.href;
+    var original = button.getAttribute("data-share-label") || button.textContent;
+    button.setAttribute("data-share-label", original);
+    var title = button.getAttribute("data-share-title") || document.title;
+
+    if (navigator.share && typeof navigator.share === "function") {
+      try {
+        var result = navigator.share({ title: title, url: url });
+        if (result && typeof result.catch === "function") {
+          result.catch(function (error) {
+            if (error && error.name === "AbortError") return;
+            copyShareLink(button, url, original);
+          });
+        }
+      } catch (error) {
+        copyShareLink(button, url, original);
+      }
+      return;
+    }
+
+    copyShareLink(button, url, original);
+  }
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || typeof target.closest !== "function") return;
+    var button = target.closest("[data-share-post]");
+    if (!button) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    sharePost(button);
+  }, true);
 
   function renderMarkdown(markdown, options) {
     options = options || {};
@@ -1216,6 +1386,12 @@
     isDevHost: isDevHost,
     updateArticleMeta: updateArticleMeta,
     copyText: copyText,
+    getBookmarks: readBookmarks,
+    isBookmarked: isBookmarked,
+    toggleBookmark: toggleBookmark,
+    bookmarkButtonMarkup: bookmarkButtonMarkup,
+    syncBookmarkButtons: syncBookmarkButtons,
+    sharePost: sharePost,
     DEFAULT_OG_IMAGE: DEFAULT_OG_IMAGE
   };
 })();

@@ -67,7 +67,8 @@
           '<h2 class="card__title"><a href="' + window.VP.escapeHtml(url) + '">' +
             window.VP.escapeHtml(post.title || "Без заголовка") + "</a></h2>" +
           (post.excerpt ? '<p class="card__excerpt">' + window.VP.escapeHtml(post.excerpt) + "</p>" : "") +
-          '<div class="card__date">' + date + author + "<span>" + window.VP.escapeHtml(reading) + "</span></div>" +
+          '<div class="card__date">' + date + author + "<span>" + window.VP.escapeHtml(reading) + "</span>" +
+            window.VP.bookmarkButtonMarkup(post.id) + "</div>" +
         "</div>" +
       "</article>"
     );
@@ -99,6 +100,7 @@
             author +
             "<span>" + window.VP.escapeHtml(readingTime) + "</span>" +
             '<button class="text-btn article-print" type="button" data-print>Распечатать</button>' +
+            window.VP.bookmarkButtonMarkup(post.id) +
           "</div>" +
         "</header>" +
         '<div class="container"><div class="article-cover">' +
@@ -107,7 +109,8 @@
         '<div class="container">' +
           '<div class="article-body">' + content + "</div>" +
           '<div class="article-footer">' +
-            '<button class="text-btn" type="button" id="shareBtn">Поделиться ссылкой</button>' +
+            '<button class="text-btn" type="button" data-share-post data-share-title="' +
+              window.VP.escapeHtml(post.title || "") + '">Поделиться</button>' +
             '<div class="article-footer__side">' +
               '<a class="text-btn" href="' + window.VP.escapeHtml(window.VP.categoryUrl(category.id)) + '">Ещё в рубрике</a>' +
               '<a class="text-btn" href="#top">Наверх</a>' +
@@ -133,24 +136,6 @@
         '<div id="relatedSlot"></div>' +
       "</article>"
     );
-  }
-
-  function bindShare() {
-    var button = document.getElementById("shareBtn");
-    if (!button) return;
-    button.addEventListener("click", async function () {
-      var original = button.textContent;
-      try {
-        await window.VP.copyText(location.href);
-        button.textContent = "Ссылка скопирована";
-      } catch (error) {
-        window.prompt("Скопируйте ссылку на статью:", location.href);
-        return;
-      }
-      window.setTimeout(function () {
-        button.textContent = original;
-      }, 2200);
-    });
   }
 
   function voteStorageKey(id) {
@@ -328,7 +313,6 @@
     root.setAttribute("aria-busy", "false");
 
     window.VP.trackPostView(post);
-    bindShare();
     bindVote(post);
     updateProgress();
     loadRelated(post);
