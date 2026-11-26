@@ -661,6 +661,63 @@ main {
   font-size: 9px;
 }
 
+/* ---------- Блок «С чего начать» ---------- */
+
+.start-here {
+  padding: 28px 0 34px;
+  border-bottom: 1px solid var(--line);
+}
+
+.start-here .section-bar {
+  margin-bottom: 18px;
+}
+
+.start-here .post-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.start-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 78px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+
+.start-card:hover {
+  border-color: var(--accent);
+  background: #ffffff;
+}
+
+.start-card__title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.start-card__meta {
+  flex: none;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---------- Показать ещё ---------- */
+
+.feed-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 44px;
+}
+
 /* ---------- Заголовок отфильтрованной рубрики ---------- */
 
 .filter-head {
@@ -3505,6 +3562,10 @@ mark {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .start-here .post-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .lead {
     grid-template-columns: 1fr;
     gap: 26px;
@@ -3638,6 +3699,11 @@ mark {
   .post-grid {
     grid-template-columns: 1fr;
     gap: 38px;
+  }
+
+  .start-here .post-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .card__media {

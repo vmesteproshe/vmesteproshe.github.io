@@ -16,6 +16,11 @@
   var DEFAULT_TITLE = "Вместе проще — онлайн-гид для молодых семей";
   var DEFAULT_DESCRIPTION = "Короткие практичные статьи о деньгах, быту, документах и отношениях — для тех, кто учится жить вместе.";
   var SAVED_FILTER = "saved";
+  var PAGE_SIZE = 6;
+  var START_HERE_LIMIT = 3;
+
+  var startHere = document.getElementById("startHere");
+  var startHereGrid = document.getElementById("startHereGrid");
 
   var state = {
     posts: [],
@@ -26,7 +31,8 @@
     loaded: false,
     loading: false,
     error: null,
-    legacy: false
+    legacy: false,
+    visibleCount: PAGE_SIZE
   };
 
   var searchTimer = null;
@@ -111,6 +117,7 @@
     }
     if (next.postId !== undefined) state.postId = next.postId || null;
     if (next.query !== undefined) state.query = String(next.query || "").trim();
+    state.visibleCount = PAGE_SIZE;
 
     syncSearchUi();
     syncSortUi();
@@ -138,6 +145,23 @@
       element.textContent = String(count);
     });
   }
+
+  // В верхнем меню показываем только рубрики, где есть опубликованные статьи.
+  // Кнопка «Все» и служебные ссылки остаются всегда.
+  function syncCategoryNavVisibility() {
+    var used = Object.create(null);
+    state.posts.forEach(function (post) {
+      if (post && post.category) used[post.category] = true;
+    });
+
+    document.querySelectorAll(".rubrics a[data-vp-category-link]").forEach(function (link) {
+      link.hidden = !used[link.getAttribute("data-category")];
+    });
+  }
+
+  document.addEventListener("vp:categories", function () {
+    if (state.loaded) syncCategoryNavVisibility();
+  });
 
   document.addEventListener("vp:bookmarks", function () {
     updateBookmarkCount();
@@ -275,6 +299,60 @@
           window.VP.coverMarkup(post, { eager: true }) +
         "</a>" +
       "</article>"
+    );
+  }
+
+  function startCardMarkup(post) {
+    var url = window.VP.homePostUrl(post.id);
+    var reading = window.VP.getReadingTime(post.content, true);
+
+    return (
+      '<a class="start-card" href="' + window.VP.escapeHtml(url) + '" data-post-link="' +
+        window.VP.escapeHtml(post.id) + '">' +
+        '<span class="start-card__title">' + window.VP.escapeHtml(post.title || "Без заголовка") + "</span>" +
+        (reading ? '<span class="start-card__meta">' + window.VP.escapeHtml(reading) + "</span>" : "") +
+      "</a>"
+    );
+  }
+
+  function renderStartHere() {
+    if (!startHere || !startHereGrid) return;
+
+    var show = state.filter === "all" && !state.query && !state.postId && state.posts.length > 0;
+    if (!show) {
+      startHere.hidden = true;
+      startHereGrid.innerHTML = "";
+      return;
+    }
+
+    var featured = state.posts.filter(function (post) {
+      return post.is_featured === true;
+    });
+    var source = featured.length >= START_HERE_LIMIT ? featured : state.posts;
+    var selected = source.slice(0, START_HERE_LIMIT);
+
+    if (!selected.length) {
+      startHere.hidden = true;
+      return;
+    }
+
+    startHereGrid.innerHTML = selected.map(startCardMarkup).join("");
+    startHere.hidden = false;
+
+    // Размещаем блок прямо перед основной сеткой статей.
+    var feedSection = feed.querySelector(".feed");
+    if (feedSection) {
+      feedSection.parentNode.insertBefore(startHere, feedSection);
+    }
+  }
+
+  function loadMoreMarkup(remaining) {
+    return (
+      '<div class="feed-more">' +
+        '<button class="btn btn--secondary" type="button" data-load-more>' +
+          "Показать ещё (" + remaining + ")" +
+        "</button>" +
+      "</div>"
     );
   }
 
@@ -495,6 +573,7 @@
     if (state.postId) {
       state.postId = null;
     }
+    state.visibleCount = PAGE_SIZE;
 
     syncSearchUi();
     writeHistory(true);
@@ -604,21 +683,26 @@
     }
 
     if (state.query) {
+      renderStartHere();
       renderSearch();
       updateReadingProgress();
       return;
     }
 
     if (state.postId) {
+      renderStartHere();
       renderReader();
       return;
     }
 
     if (state.filter === SAVED_FILTER) {
+      renderStartHere();
       renderSaved();
       updateReadingProgress();
       return;
     }
+
+    renderStartHere();
 
     if (!state.posts.length) {
       resetMeta();
@@ -646,6 +730,7 @@
   function renderHome() {
     resetMeta();
     window.VP.setActiveCategory("all");
+    renderStartHere();
 
     var lead = state.sort === "popular"
       ? state.posts[0]
@@ -663,14 +748,49 @@
       "</section>";
 
     if (rest.length) {
+      var visible = rest.slice(0, state.visibleCount);
       html +=
         '<section class="feed" aria-labelledby="feedTitle">' +
           '<div class="section-bar"><h2 class="eyebrow" id="feedTitle">Ещё в выпуске</h2></div>' +
-          '<div class="post-grid">' + rest.map(cardMarkup).join("") + "</div>" +
+          '<div class="post-grid" id="mainPostGrid">' + visible.map(cardMarkup).join("") + "</div>" +
+          (rest.length > state.visibleCount ? loadMoreMarkup(rest.length - state.visibleCount) : "") +
         "</section>";
     }
 
     feed.innerHTML = html;
+    renderStartHere();
+  }
+
+  // Догружаем следующие карточки, не перерисовывая лид и блок «С чего начать».
+  function showMorePosts(button) {
+    if (state.filter !== "all" || state.query || state.postId) return;
+
+    var lead = state.sort === "popular"
+      ? state.posts[0]
+      : state.posts.find(function (post) {
+          return post.is_featured === true;
+        }) || state.posts[0];
+    var rest = state.posts.filter(function (post) {
+      return post.id !== lead.id;
+    });
+
+    var grid = document.getElementById("mainPostGrid");
+    if (!grid) return;
+
+    var previousCount = grid.children.length;
+    var next = rest.slice(previousCount, previousCount + PAGE_SIZE);
+    if (!next.length) return;
+
+    grid.insertAdjacentHTML("beforeend", next.map(cardMarkup).join(""));
+    state.visibleCount = previousCount + next.length;
+
+    var remaining = rest.length - state.visibleCount;
+    if (remaining > 0) {
+      button.textContent = "Показать ещё (" + remaining + ")";
+    } else {
+      var wrapper = button.closest(".feed-more");
+      if (wrapper) wrapper.remove();
+    }
   }
 
   function renderFilter() {
@@ -780,6 +900,7 @@
       console.info("Статьи загружены по старой схеме: выполните sql/migration_v2.sql, чтобы включить статусы и стили обложек.");
     }
 
+    syncCategoryNavVisibility();
     render({ scroll: false });
   }
 
@@ -817,6 +938,12 @@
     if (clearTrigger) {
       applySearch("");
       if (searchInput) searchInput.focus();
+      return;
+    }
+
+    var moreTrigger = event.target.closest("[data-load-more]");
+    if (moreTrigger) {
+      showMorePosts(moreTrigger);
       return;
     }
 
@@ -882,6 +1009,7 @@
       state.query = "";
     }
     state.posts = sortPosts(state.posts);
+    state.visibleCount = PAGE_SIZE;
 
     syncSearchUi();
     syncSortUi();
