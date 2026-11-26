@@ -1,0 +1,46 @@
+name: Generate sitemap
+
+on:
+  # Каждый день в 03:17 UTC
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sitemap:
+    name: Generate and commit sitemap.xml
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate sitemap
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: node scripts/generate-sitemap.mjs
+
+      - name: Commit only if sitemap.xml changed
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --intent-to-add sitemap.xml
+          if git diff --quiet -- sitemap.xml; then
+            echo "sitemap.xml не изменился — коммит не нужен"
+            exit 0
+          fi
+          git add sitemap.xml
+          git commit -m "Обновить sitemap.xml"
+          git push origin HEAD:main
