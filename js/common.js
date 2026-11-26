@@ -489,6 +489,157 @@
       .replace(/\n/g, "<br>") + "</p>";
   }
 
+  // Состояние чек-листов хранится отдельно для каждой статьи.
+  var CHECKLIST_KEY_PREFIX = "vp_checklist_";
+
+  function checklistStorageKey(postId) {
+    return CHECKLIST_KEY_PREFIX + postId;
+  }
+
+  function readChecklistState(postId) {
+    if (!postId) return [];
+    try {
+      var raw = window.localStorage.getItem(checklistStorageKey(postId));
+      var parsed = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(function (value) {
+        return Number(value);
+      }).filter(function (value) {
+        return isFinite(value) && value >= 0 && Math.floor(value) === value;
+      });
+    } catch (error) {
+      console.warn("Не удалось прочитать отметки чек-листа:", error);
+      return [];
+    }
+  }
+
+  function storeChecklistState(postId, checkedIndexes) {
+    if (!postId) return;
+    try {
+      window.localStorage.setItem(checklistStorageKey(postId), JSON.stringify(checkedIndexes));
+    } catch (error) {
+      console.warn("Не удалось сохранить отметки чек-листа:", error);
+    }
+  }
+
+  function checklistBoxes(container) {
+    return Array.prototype.slice.call(
+      container.querySelectorAll('input[type="checkbox"][data-vp-checklist-index]')
+    );
+  }
+
+  function updateChecklistProgress(wrapper) {
+    if (!wrapper) return;
+    var boxes = checklistBoxes(wrapper);
+    if (!boxes.length) return;
+
+    var done = boxes.filter(function (box) { return box.checked; }).length;
+    var progress = wrapper.querySelector(".checklist__progress");
+    if (progress) progress.textContent = "Выполнено " + done + " из " + boxes.length;
+
+    var reset = wrapper.querySelector("[data-vp-checklist-reset]");
+    if (reset) reset.disabled = done === 0;
+  }
+
+  function initChecklists(container, postId) {
+    if (!postId) return;
+
+    var stored = readChecklistState(postId);
+    var lists = [];
+
+    checklistBoxes(container).forEach(function (checkbox) {
+      var index = Number(checkbox.getAttribute("data-vp-checklist-index"));
+      if (stored.indexOf(index) !== -1) {
+        checkbox.setAttribute("checked", "checked");
+      } else {
+        checkbox.removeAttribute("checked");
+      }
+
+      var list = checkbox.closest("ul, ol");
+      if (list && lists.indexOf(list) === -1) lists.push(list);
+    });
+
+    lists.forEach(function (list) {
+      var wrapper = document.createElement("div");
+      wrapper.className = "checklist";
+      wrapper.setAttribute("data-vp-post", String(postId));
+
+      var bar = document.createElement("div");
+      bar.className = "checklist__bar";
+
+      var progress = document.createElement("span");
+      progress.className = "checklist__progress";
+
+      var reset = document.createElement("button");
+      reset.type = "button";
+      reset.className = "text-btn checklist__reset";
+      reset.setAttribute("data-vp-checklist-reset", "");
+      reset.textContent = "Сбросить отметки";
+
+      bar.appendChild(progress);
+      bar.appendChild(reset);
+      wrapper.appendChild(bar);
+
+      if (list.parentNode) list.parentNode.insertBefore(wrapper, list);
+      wrapper.appendChild(list);
+      updateChecklistProgress(wrapper);
+    });
+  }
+
+  document.addEventListener("change", function (event) {
+    var checkbox = event.target;
+    if (!checkbox || checkbox.tagName !== "INPUT" || checkbox.type !== "checkbox") return;
+    if (!checkbox.hasAttribute("data-vp-checklist-index")) return;
+
+    var wrapper = checkbox.closest(".checklist");
+    if (!wrapper) return;
+
+    var postId = wrapper.getAttribute("data-vp-post") || "";
+    var index = Number(checkbox.getAttribute("data-vp-checklist-index"));
+    if (!postId || !isFinite(index)) return;
+
+    var checked = readChecklistState(postId).filter(function (value) {
+      return value !== index;
+    });
+    if (checkbox.checked) checked.push(index);
+    checked.sort(function (a, b) { return a - b; });
+
+    storeChecklistState(postId, checked);
+    updateChecklistProgress(wrapper);
+  });
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || typeof target.closest !== "function") return;
+
+    if (target.closest("[data-print]")) {
+      event.preventDefault();
+      window.print();
+      return;
+    }
+
+    var reset = target.closest("[data-vp-checklist-reset]");
+    if (!reset) return;
+
+    var wrapper = reset.closest(".checklist");
+    if (!wrapper) return;
+
+    event.preventDefault();
+    var postId = wrapper.getAttribute("data-vp-post") || "";
+    var listIndexes = checklistBoxes(wrapper).map(function (box) {
+      return Number(box.getAttribute("data-vp-checklist-index"));
+    });
+    var checked = readChecklistState(postId).filter(function (index) {
+      return listIndexes.indexOf(index) === -1;
+    });
+
+    storeChecklistState(postId, checked);
+    checklistBoxes(wrapper).forEach(function (box) {
+      box.checked = false;
+    });
+    updateChecklistProgress(wrapper);
+  });
+
   function renderMarkdown(markdown, options) {
     options = options || {};
     if (!window.marked || typeof window.marked.parse !== "function") {
@@ -541,10 +692,16 @@
     });
 
     // Чек-листы из Markdown остаются кликабельными в статье.
-    template.content.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+    var checkboxes = template.content.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(function (checkbox, index) {
       checkbox.removeAttribute("disabled");
       checkbox.setAttribute("aria-label", "Отметить пункт чек-листа");
+      checkbox.setAttribute("data-vp-checklist-index", String(index));
     });
+
+    if (checkboxes.length && options.postId != null) {
+      initChecklists(template.content, String(options.postId));
+    }
 
     var toc = options.toc ? buildTableOfContents(template.content) : "";
     return toc + template.innerHTML;

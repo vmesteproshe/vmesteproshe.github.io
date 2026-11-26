@@ -78,7 +78,7 @@
     var date = window.VP.formatDate(post.created_at);
     var isoDate = window.VP.toIsoDate(post.created_at);
     var readingTime = window.VP.getReadingTime(post.content, true);
-    var content = window.VP.renderMarkdown(post.content, { toc: true });
+    var content = window.VP.renderMarkdown(post.content, { toc: true, postId: post.id });
     var author = post.author
       ? '<span class="article-author">' + window.VP.escapeHtml(post.author) + "</span>"
       : "";
@@ -98,6 +98,7 @@
             (date ? '<time datetime="' + window.VP.escapeHtml(isoDate) + '">' + window.VP.escapeHtml(date) + "</time>" : "") +
             author +
             "<span>" + window.VP.escapeHtml(readingTime) + "</span>" +
+            '<button class="text-btn article-print" type="button" data-print>Распечатать</button>' +
           "</div>" +
         "</header>" +
         '<div class="container"><div class="article-cover">' +

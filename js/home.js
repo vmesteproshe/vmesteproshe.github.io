@@ -198,9 +198,12 @@
       : "";
     var reading = window.VP.getReadingTime(post.content, true);
     var readingMarkup = reading ? "<span>" + window.VP.escapeHtml(reading) + "</span>" : "";
+    var printMarkup = className === "article-meta"
+      ? '<button class="text-btn article-print" type="button" data-print>Распечатать</button>'
+      : "";
 
-    if (!date && !author && !readingMarkup) return "";
-    return '<div class="' + className + '">' + date + author + readingMarkup + "</div>";
+    if (!date && !author && !readingMarkup && !printMarkup) return "";
+    return '<div class="' + className + '">' + date + author + readingMarkup + printMarkup + "</div>";
   }
 
   function cardMarkup(post) {
@@ -361,7 +364,7 @@
 
   function readerMarkup(post) {
     var category = window.VP.getCategory(post.category);
-    var content = window.VP.renderMarkdown(post.content, { toc: true });
+    var content = window.VP.renderMarkdown(post.content, { toc: true, postId: post.id });
     var cover = window.VP.coverMarkup(post, { eager: true });
 
     return (
